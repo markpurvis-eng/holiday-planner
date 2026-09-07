@@ -1,0 +1,13 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Supabase credentials are provided via VITE_SUPABASE_URL and
+# VITE_SUPABASE_ANON_KEY, either in a local .env file (see .env.example)
+# or as Netlify environment variables set in the site dashboard for
+# production builds.
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
