@@ -108,18 +108,29 @@ export default function TripDetail() {
             {bookings.map((b) => (
               <div key={b.id} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-stone-800">{b.provider_name}</h3>
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                      b.payment_status === 'paid'
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : b.payment_status === 'partially_paid'
-                          ? 'bg-amber-100 text-amber-700'
-                          : 'bg-red-100 text-red-700'
-                    }`}
+                  <h3
+                    className={`font-semibold text-stone-800 ${b.cancelled ? 'line-through' : ''}`}
                   >
-                    {b.payment_status.replace('_', ' ')}
-                  </span>
+                    {b.provider_name}
+                  </h3>
+                  <div className="flex shrink-0 gap-1.5">
+                    {b.cancelled && (
+                      <span className="rounded-full bg-stone-200 px-2.5 py-1 text-xs font-medium text-stone-600">
+                        Cancelled
+                      </span>
+                    )}
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                        b.payment_status === 'paid'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : b.payment_status === 'partially_paid'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-red-100 text-red-700'
+                      }`}
+                    >
+                      {b.payment_status.replace('_', ' ')}
+                    </span>
+                  </div>
                 </div>
                 {b.confirmation_ref && (
                   <p className="mt-1 text-sm text-stone-500">Ref: {b.confirmation_ref}</p>
@@ -160,10 +171,19 @@ export default function TripDetail() {
                   {item.time && <div>{item.time}</div>}
                 </div>
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-teal-600">
-                    {item.type}
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-teal-600">
+                      {item.type}
+                    </p>
+                    {item.cancelled && (
+                      <span className="rounded-full bg-stone-200 px-2 py-0.5 text-xs font-medium text-stone-600">
+                        Cancelled
+                      </span>
+                    )}
+                  </div>
+                  <p className={`font-medium text-stone-800 ${item.cancelled ? 'line-through' : ''}`}>
+                    {item.venue}
                   </p>
-                  <p className="font-medium text-stone-800">{item.venue}</p>
                   {item.reference && (
                     <p className="text-sm text-stone-500">Ref: {item.reference}</p>
                   )}
@@ -196,7 +216,8 @@ export default function TripDetail() {
           <>
             {links.length === 0 && <EmptyState text="No links yet." />}
             {links.map((link) => (
-              <a
+              
+              <a 
                 key={link.id}
                 href={link.url}
                 target="_blank"

@@ -32,6 +32,7 @@ export type Booking = {
   currency: string | null
   payment_status: PaymentStatus
   check_in_details: string | null
+  cancelled: boolean
   created_at: string
 }
 
@@ -54,6 +55,7 @@ export type ItineraryItem = {
   venue: string | null
   reference: string | null
   status: string | null
+  cancelled: boolean
   cost: number | null
   created_at: string
 }
