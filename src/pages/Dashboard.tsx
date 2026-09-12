@@ -30,7 +30,7 @@ export default function Dashboard() {
   return (
     <div className="mx-auto max-w-lg px-4 pb-24 pt-6">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-stone-800">Your Trips</h1>
+        <h1 className="text-2xl font-bold text-stone-800">My Trips</h1>
         <button onClick={handleSignOut} className="text-sm text-stone-400 hover:text-stone-600">
           Sign out
         </button>
