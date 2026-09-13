@@ -59,3 +59,15 @@ export function formatDayAbbrev(dateStr: string): string {
   const day = parseLocalDate(dateStr).toLocaleDateString(undefined, { weekday: 'short' })
   return day.slice(0, 3)
 }
+
+// Whole days between today (local) and a date-only string. Uses
+// parseLocalDate so it isn't affected by the UTC-midnight parsing bug —
+// see parseLocalDate above.
+export function daysUntil(dateStr: string): number {
+  const target = parseLocalDate(dateStr)
+  target.setHours(0, 0, 0, 0)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const msPerDay = 24 * 60 * 60 * 1000
+  return Math.round((target.getTime() - today.getTime()) / msPerDay)
+}

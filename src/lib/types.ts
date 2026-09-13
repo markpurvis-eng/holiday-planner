@@ -57,6 +57,7 @@ export type ItineraryItem = {
   status: string | null
   cancelled: boolean
   cost: number | null
+  currency: string | null
   created_at: string
 }
 

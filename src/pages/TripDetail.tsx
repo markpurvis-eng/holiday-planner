@@ -240,7 +240,7 @@ export default function TripDetail() {
                     <p className="text-sm text-stone-500">Ref: {item.reference}</p>
                   )}
                   {item.cost != null && (
-                    <p className="text-sm text-stone-500">{formatMoney(item.cost)}</p>
+                    <p className="text-sm text-stone-500">{formatMoney(item.cost, item.currency)}</p>
                   )}
                   <AttachedItems
                     documents={documents.filter((d) => d.itinerary_item_id === item.id)}

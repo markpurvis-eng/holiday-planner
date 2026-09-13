@@ -1,14 +1,21 @@
 import { Link } from 'react-router-dom'
 import type { Trip } from '../lib/types'
-import { formatDate } from '../lib/format'
+import { formatDate, daysUntil } from '../lib/format'
 
 function formatDateRange(start: string, end: string) {
   const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
   return `${formatDate(start, opts)} – ${formatDate(end, opts)}`
 }
 
+function formatCountdown(days: number): string {
+  if (days <= 0) return 'Departs today'
+  if (days === 1) return 'Departs tomorrow'
+  return `Departs in ${days} days`
+}
+
 export function TripCard({ trip }: { trip: Trip }) {
   const icon = trip.trip_type?.icon ?? '🧳'
+  const showCountdown = trip.status === 'upcoming'
   return (
     <Link
       to={`/trips/${trip.id}`}
@@ -23,6 +30,11 @@ export function TripCard({ trip }: { trip: Trip }) {
           {formatDateRange(trip.start_date, trip.end_date)}
           {trip.nights ? ` · ${trip.nights} nights` : ''}
         </p>
+        {showCountdown && (
+          <p className="mt-1 text-xs font-medium text-teal-600">
+            {formatCountdown(daysUntil(trip.start_date))}
+          </p>
+        )}
       </div>
       {trip.status === 'active' && (
         <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
