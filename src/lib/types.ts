@@ -17,6 +17,9 @@ export type Trip = {
   trip_type_id: string | null
   created_at: string
   trip_type?: TripType | null
+  destination_name: string | null
+  destination_lat: number | null
+  destination_lng: number | null
 }
 
 export type PaymentStatus = 'unpaid' | 'partially_paid' | 'paid'
@@ -34,6 +37,9 @@ export type Booking = {
   check_in_details: string | null
   cancelled: boolean
   created_at: string
+  destination_name: string | null
+  destination_lat: number | null
+  destination_lng: number | null
 }
 
 export type Payment = {

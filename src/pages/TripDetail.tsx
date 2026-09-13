@@ -16,7 +16,9 @@ import { TabBar } from '../components/TabBar'
 import { DocumentGroup } from '../components/DocumentGroup'
 import { AttachedItems } from '../components/AttachedItems'
 import { LoadingSpinner } from '../components/LoadingSpinner'
-import { formatMoney, formatTime, formatDayAbbrev, formatDate } from '../lib/format'
+import { formatMoney, formatTime, formatDayAbbrev, formatDate, daysUntil, todayDateString } from '../lib/format'
+import { WeatherForecast } from '../components/WeatherForecast'
+import { findLocationForDate } from '../lib/weather'
 
 type Tab = 'bookings' | 'itinerary' | 'documents' | 'links' | 'todos'
 
@@ -76,6 +78,16 @@ export default function TripDetail() {
     .filter((b) => paymentFilter === 'all' || b.payment_status === paymentFilter)
   const visibleItinerary = hideCancelled ? itinerary.filter((item) => !item.cancelled) : itinerary
 
+  // Once the trip has started (and hasn't ended), prefer today's actual
+  // location — from whichever booking's date range covers today — over the
+  // trip's single pre-trip anchor. Falls back to the trip anchor on days
+  // with no coordinated booking (e.g. mid-cruise).
+  const tripUnderway = daysUntil(trip.start_date) <= 0 && daysUntil(trip.end_date) >= 0
+  const todaysLocation = tripUnderway ? findLocationForDate(bookings, todayDateString()) : null
+  const weatherLat = todaysLocation?.lat ?? trip.destination_lat
+  const weatherLng = todaysLocation?.lng ?? trip.destination_lng
+  const weatherName = todaysLocation?.name ?? trip.destination_name
+
   return (
     <div className="mx-auto max-w-lg px-4 pb-24 pt-6">
       <Link to="/" className="mb-4 inline-block text-sm text-teal-700">
@@ -95,6 +107,13 @@ export default function TripDetail() {
           </p>
         </div>
       </div>
+
+      {weatherLat != null &&
+        weatherLng != null &&
+        daysUntil(trip.start_date) <= 10 &&
+        daysUntil(trip.end_date) >= 0 && (
+          <WeatherForecast lat={weatherLat} lng={weatherLng} destinationName={weatherName} />
+        )}
 
       <TabBar<Tab>
         tabs={[

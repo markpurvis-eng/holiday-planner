@@ -77,3 +77,16 @@ export function daysUntil(dateStr: string): number {
 export function getYear(dateStr: string): number {
   return parseLocalDate(dateStr).getFullYear()
 }
+
+// Today's date as a local "YYYY-MM-DD" string, for comparing against the
+// date-only columns Supabase returns (e.g. finding which booking covers
+// today). Built from local y/m/d parts, not toISOString(), which would
+// convert through UTC and risk the same day-shift bug parseLocalDate exists
+// to avoid.
+export function todayDateString(): string {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
