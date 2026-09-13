@@ -5,6 +5,39 @@ import { useAuth } from '../lib/auth'
 import type { Trip } from '../lib/types'
 import { TripCard } from '../components/TripCard'
 import { LoadingSpinner } from '../components/LoadingSpinner'
+import { getYear } from '../lib/format'
+
+function YearDivider({ year }: { year: number }) {
+  return (
+    <div className="flex items-center gap-3 py-1 text-xs font-semibold tracking-wide text-stone-400">
+      <span className="h-px flex-1 bg-stone-200" />
+      {year}
+      <span className="h-px flex-1 bg-stone-200" />
+    </div>
+  )
+}
+
+// Renders trip cards with a year header before the first trip and a divider
+// inserted wherever the year changes after that. Trips are expected in date
+// order already (getTrips orders by start_date).
+function TripListWithYearDividers({ trips }: { trips: Trip[] }) {
+  let lastYear: number | null = null
+  return (
+    <>
+      {trips.map((trip) => {
+        const year = getYear(trip.start_date)
+        const showDivider = lastYear === null || year !== lastYear
+        lastYear = year
+        return (
+          <div key={trip.id}>
+            {showDivider && <YearDivider year={year} />}
+            <TripCard trip={trip} />
+          </div>
+        )
+      })}
+    </>
+  )
+}
 
 export default function Dashboard() {
   const [trips, setTrips] = useState<Trip[]>([])
@@ -50,7 +83,7 @@ export default function Dashboard() {
                 Supabase.
               </p>
             ) : (
-              active.map((trip) => <TripCard key={trip.id} trip={trip} />)
+              <TripListWithYearDividers trips={active} />
             )}
           </section>
 
@@ -65,9 +98,7 @@ export default function Dashboard() {
               </button>
               {showPast && (
                 <div className="mt-3 space-y-3 opacity-80">
-                  {past.map((trip) => (
-                    <TripCard key={trip.id} trip={trip} />
-                  ))}
+                  <TripListWithYearDividers trips={past} />
                 </div>
               )}
             </section>

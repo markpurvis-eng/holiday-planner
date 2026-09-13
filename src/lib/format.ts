@@ -71,3 +71,9 @@ export function daysUntil(dateStr: string): number {
   const msPerDay = 24 * 60 * 60 * 1000
   return Math.round((target.getTime() - today.getTime()) / msPerDay)
 }
+
+// Calendar year of a date-only string, using parseLocalDate so it isn't
+// affected by the UTC-midnight parsing bug — see parseLocalDate above.
+export function getYear(dateStr: string): number {
+  return parseLocalDate(dateStr).getFullYear()
+}
