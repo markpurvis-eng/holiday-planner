@@ -4,7 +4,7 @@
 // Non-commercial use requires attribution (CC BY 4.0) — see the credit line
 // rendered alongside the forecast in WeatherForecast.tsx.
 
-import type { Booking } from './types'
+import type { Booking, ItineraryItem } from './types'
 
 export type DailyForecast = {
   date: string // "YYYY-MM-DD", local to the forecast location
@@ -92,4 +92,40 @@ export function findLocationForDate(bookings: Booking[], dateStr: string): Resol
     lng: match.destination_lng as number,
     name: match.destination_name,
   }
+}
+
+// Finds an itinerary item on exactly `dateStr` with coordinates set. This is
+// how a moving cruise's day-by-day port stops (each logged as a `transport`
+// itinerary item — "Quebec City", "Halifax", "Sea Day" with no coordinates,
+// etc.) resolve to a location, since the cruise booking itself is
+// deliberately left uncoordinated (see findLocationForDate above).
+export function findItineraryLocationForDate(
+  items: ItineraryItem[],
+  dateStr: string
+): ResolvedLocation | null {
+  const match = items.find(
+    (item) =>
+      !item.cancelled &&
+      item.date === dateStr &&
+      item.destination_lat != null &&
+      item.destination_lng != null
+  )
+  if (!match) return null
+  return {
+    lat: match.destination_lat as number,
+    lng: match.destination_lng as number,
+    name: match.destination_name,
+  }
+}
+
+// Resolves "where you are today" for the weather forecast. Itinerary items
+// are checked first — they're the more specific, day-by-day record (this is
+// what makes a moving cruise work at all) — falling back to bookings, whose
+// date ranges are coarser (a whole hotel stay, not a single day).
+export function resolveTodaysLocation(
+  itinerary: ItineraryItem[],
+  bookings: Booking[],
+  dateStr: string
+): ResolvedLocation | null {
+  return findItineraryLocationForDate(itinerary, dateStr) ?? findLocationForDate(bookings, dateStr)
 }

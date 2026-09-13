@@ -65,6 +65,9 @@ export type ItineraryItem = {
   cost: number | null
   currency: string | null
   created_at: string
+  destination_name: string | null
+  destination_lat: number | null
+  destination_lng: number | null
 }
 
 export type DocumentType = 'confirmation' | 'photo' | 'receipt' | 'guide'

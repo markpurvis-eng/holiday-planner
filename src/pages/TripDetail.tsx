@@ -18,7 +18,7 @@ import { AttachedItems } from '../components/AttachedItems'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { formatMoney, formatTime, formatDayAbbrev, formatDate, daysUntil, todayDateString } from '../lib/format'
 import { WeatherForecast } from '../components/WeatherForecast'
-import { findLocationForDate } from '../lib/weather'
+import { resolveTodaysLocation } from '../lib/weather'
 
 type Tab = 'bookings' | 'itinerary' | 'documents' | 'links' | 'todos'
 
@@ -79,11 +79,13 @@ export default function TripDetail() {
   const visibleItinerary = hideCancelled ? itinerary.filter((item) => !item.cancelled) : itinerary
 
   // Once the trip has started (and hasn't ended), prefer today's actual
-  // location — from whichever booking's date range covers today — over the
-  // trip's single pre-trip anchor. Falls back to the trip anchor on days
-  // with no coordinated booking (e.g. mid-cruise).
+  // location — from today's itinerary item if there is one (e.g. a cruise's
+  // day-by-day port stops), else whichever booking's date range covers
+  // today — over the trip's single pre-trip anchor. Falls back to the trip
+  // anchor on days with no coordinated itinerary item or booking (e.g. a
+  // "Sea Day" with no port).
   const tripUnderway = daysUntil(trip.start_date) <= 0 && daysUntil(trip.end_date) >= 0
-  const todaysLocation = tripUnderway ? findLocationForDate(bookings, todayDateString()) : null
+  const todaysLocation = tripUnderway ? resolveTodaysLocation(itinerary, bookings, todayDateString()) : null
   const weatherLat = todaysLocation?.lat ?? trip.destination_lat
   const weatherLng = todaysLocation?.lng ?? trip.destination_lng
   const weatherName = todaysLocation?.name ?? trip.destination_name
