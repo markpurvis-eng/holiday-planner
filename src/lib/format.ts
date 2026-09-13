@@ -31,3 +31,9 @@ export function formatMoney(amount: number, currency?: string | null): string {
   // Unknown currency code — show the code rather than silently assuming GBP.
   return `${formattedNumber} ${code}`
 }
+
+// Trims a Postgres `time` value ("14:30:00") down to HH:MM for display.
+export function formatTime(time?: string | null): string {
+  if (!time) return ''
+  return time.slice(0, 5)
+}

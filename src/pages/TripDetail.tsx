@@ -16,7 +16,7 @@ import { TabBar } from '../components/TabBar'
 import { DocumentGroup } from '../components/DocumentGroup'
 import { AttachedItems } from '../components/AttachedItems'
 import { LoadingSpinner } from '../components/LoadingSpinner'
-import { formatMoney } from '../lib/format'
+import { formatMoney, formatTime } from '../lib/format'
 
 type Tab = 'bookings' | 'itinerary' | 'documents' | 'links' | 'todos'
 
@@ -219,7 +219,7 @@ export default function TripDetail() {
               >
                 <div className="w-16 shrink-0 text-sm text-stone-500">
                   <div>{new Date(item.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</div>
-                  {item.time && <div>{item.time}</div>}
+                  {item.time && <div>{formatTime(item.time)}</div>}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
