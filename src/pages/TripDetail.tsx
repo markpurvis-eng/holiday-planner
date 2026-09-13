@@ -31,6 +31,8 @@ export default function TripDetail() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('bookings')
   const [newTodo, setNewTodo] = useState('')
+  const [hideCancelled, setHideCancelled] = useState(false)
+  const [paymentFilter, setPaymentFilter] = useState<'all' | Booking['payment_status']>('all')
 
   useEffect(() => {
     if (!id) return
@@ -69,6 +71,11 @@ export default function TripDetail() {
   if (loading) return <LoadingSpinner label="Loading trip…" />
   if (!trip) return <p className="p-6 text-center text-stone-500">Trip not found.</p>
 
+  const visibleBookings = bookings
+    .filter((b) => !hideCancelled || !b.cancelled)
+    .filter((b) => paymentFilter === 'all' || b.payment_status === paymentFilter)
+  const visibleItinerary = hideCancelled ? itinerary.filter((item) => !item.cancelled) : itinerary
+
   return (
     <div className="mx-auto max-w-lg px-4 pb-24 pt-6">
       <Link to="/" className="mb-4 inline-block text-sm text-teal-700">
@@ -101,11 +108,52 @@ export default function TripDetail() {
         onChange={setTab}
       />
 
+      {(tab === 'bookings' || tab === 'itinerary') && (
+        <label className="mt-3 flex items-center gap-2 text-sm text-stone-600">
+          <input
+            type="checkbox"
+            checked={hideCancelled}
+            onChange={(e) => setHideCancelled(e.target.checked)}
+            className="h-4 w-4 rounded border-stone-300 text-teal-600 focus:ring-teal-500"
+          />
+          Hide cancelled items
+        </label>
+      )}
+
+      {tab === 'bookings' && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {(
+            [
+              { id: 'all', label: 'All' },
+              { id: 'unpaid', label: 'Unpaid' },
+              { id: 'partially_paid', label: 'Partially paid' },
+              { id: 'paid', label: 'Paid' },
+            ] as const
+          ).map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => setPaymentFilter(option.id)}
+              className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                paymentFilter === option.id
+                  ? 'bg-teal-600 text-white'
+                  : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="mt-4 space-y-4">
         {tab === 'bookings' && (
           <>
             {bookings.length === 0 && <EmptyState text="No bookings yet." />}
-            {bookings.map((b) => (
+            {bookings.length > 0 && visibleBookings.length === 0 && (
+              <EmptyState text="No bookings match the current filters." />
+            )}
+            {visibleBookings.map((b) => (
               <div key={b.id} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100">
                 <div className="flex items-center justify-between">
                   <h3
@@ -161,7 +209,10 @@ export default function TripDetail() {
         {tab === 'itinerary' && (
           <>
             {itinerary.length === 0 && <EmptyState text="No itinerary items yet." />}
-            {itinerary.map((item) => (
+            {itinerary.length > 0 && visibleItinerary.length === 0 && (
+              <EmptyState text="All itinerary items are cancelled." />
+            )}
+            {visibleItinerary.map((item) => (
               <div
                 key={item.id}
                 className="flex gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100"
