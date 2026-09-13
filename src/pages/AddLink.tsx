@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { getTrips, getBookings, getItinerary, createLink } from '../lib/api'
 import type { Booking, ItineraryItem, Trip } from '../lib/types'
+import { formatDate } from '../lib/format'
 
 type AttachMode = 'trip' | 'booking' | 'itinerary'
 
 function formatItineraryLabel(item: ItineraryItem) {
-  const date = new Date(item.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+  const date = formatDate(item.date, { day: 'numeric', month: 'short' })
   return `${date} · ${item.venue ?? item.type}`
 }
 

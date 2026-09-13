@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { getTrips, getBookings, getItinerary, uploadDocumentFile, createDocument } from '../lib/api'
 import type { Booking, DocumentType, ItineraryItem, Trip } from '../lib/types'
+import { formatDate } from '../lib/format'
 
 const TYPES: { id: DocumentType; label: string }[] = [
   { id: 'confirmation', label: 'Confirmation' },
@@ -22,7 +23,7 @@ const ACCEPT_BY_TYPE: Record<DocumentType, string> = {
 type AttachMode = 'trip' | 'booking' | 'itinerary'
 
 function formatItineraryLabel(item: ItineraryItem) {
-  const date = new Date(item.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+  const date = formatDate(item.date, { day: 'numeric', month: 'short' })
   return `${date} · ${item.venue ?? item.type}`
 }
 

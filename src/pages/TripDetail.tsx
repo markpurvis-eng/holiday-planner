@@ -16,7 +16,7 @@ import { TabBar } from '../components/TabBar'
 import { DocumentGroup } from '../components/DocumentGroup'
 import { AttachedItems } from '../components/AttachedItems'
 import { LoadingSpinner } from '../components/LoadingSpinner'
-import { formatMoney, formatTime, formatDayAbbrev } from '../lib/format'
+import { formatMoney, formatTime, formatDayAbbrev, formatDate } from '../lib/format'
 
 type Tab = 'bookings' | 'itinerary' | 'documents' | 'links' | 'todos'
 
@@ -89,8 +89,8 @@ export default function TripDetail() {
         <div>
           <h1 className="text-xl font-bold text-stone-800">{trip.name}</h1>
           <p className="text-sm text-stone-500">
-            {new Date(trip.start_date).toLocaleDateString()} –{' '}
-            {new Date(trip.end_date).toLocaleDateString()}
+            {formatDate(trip.start_date)} –{' '}
+            {formatDate(trip.end_date)}
             {trip.nights ? ` · ${trip.nights} nights` : ''}
           </p>
         </div>
@@ -185,8 +185,8 @@ export default function TripDetail() {
                 )}
                 {(b.start_date || b.end_date) && (
                   <p className="text-sm text-stone-500">
-                    {b.start_date ? new Date(b.start_date).toLocaleDateString() : ''}
-                    {b.end_date ? ` – ${new Date(b.end_date).toLocaleDateString()}` : ''}
+                    {b.start_date ? formatDate(b.start_date) : ''}
+                    {b.end_date ? ` – ${formatDate(b.end_date)}` : ''}
                   </p>
                 )}
                 {b.cost != null && (
@@ -219,7 +219,7 @@ export default function TripDetail() {
               >
                 <div className="w-16 shrink-0 text-sm text-stone-500">
                   <div>{formatDayAbbrev(item.date)}</div>
-                  <div>{new Date(item.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</div>
+                  <div>{formatDate(item.date, { day: 'numeric', month: 'short' })}</div>
                   {item.time && <div>{formatTime(item.time)}</div>}
                 </div>
                 <div>

@@ -32,6 +32,22 @@ export function formatMoney(amount: number, currency?: string | null): string {
   return `${formattedNumber} ${code}`
 }
 
+// Parses a date-only string ("2026-09-14") as a LOCAL calendar date.
+// `new Date("2026-09-14")` parses it as UTC midnight, and toLocaleDateString()
+// then renders that in the browser's local timezone — for anyone west of UTC
+// (e.g. Canada, US) that shifts the displayed date back by one day. Building
+// the Date from y/m/d components instead uses local time throughout, so the
+// calendar date shown always matches the date stored, regardless of timezone.
+export function parseLocalDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+// Formats a date-only string via parseLocalDate, avoiding the UTC-shift bug.
+export function formatDate(dateStr: string, opts?: Intl.DateTimeFormatOptions): string {
+  return parseLocalDate(dateStr).toLocaleDateString(undefined, opts)
+}
+
 // Trims a Postgres `time` value ("14:30:00") down to HH:MM for display.
 export function formatTime(time?: string | null): string {
   if (!time) return ''
@@ -40,6 +56,6 @@ export function formatTime(time?: string | null): string {
 
 // 3-letter weekday abbreviation for itinerary cards ("Mon", "Tue", ...).
 export function formatDayAbbrev(dateStr: string): string {
-  const day = new Date(dateStr).toLocaleDateString(undefined, { weekday: 'short' })
+  const day = parseLocalDate(dateStr).toLocaleDateString(undefined, { weekday: 'short' })
   return day.slice(0, 3)
 }

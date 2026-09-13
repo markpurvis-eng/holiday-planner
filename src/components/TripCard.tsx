@@ -1,11 +1,10 @@
 import { Link } from 'react-router-dom'
 import type { Trip } from '../lib/types'
+import { formatDate } from '../lib/format'
 
 function formatDateRange(start: string, end: string) {
-  const s = new Date(start)
-  const e = new Date(end)
   const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
-  return `${s.toLocaleDateString(undefined, opts)} – ${e.toLocaleDateString(undefined, opts)}`
+  return `${formatDate(start, opts)} – ${formatDate(end, opts)}`
 }
 
 export function TripCard({ trip }: { trip: Trip }) {
