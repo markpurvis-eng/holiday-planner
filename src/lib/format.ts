@@ -37,3 +37,9 @@ export function formatTime(time?: string | null): string {
   if (!time) return ''
   return time.slice(0, 5)
 }
+
+// 3-letter weekday abbreviation for itinerary cards ("Mon", "Tue", ...).
+export function formatDayAbbrev(dateStr: string): string {
+  const day = new Date(dateStr).toLocaleDateString(undefined, { weekday: 'short' })
+  return day.slice(0, 3)
+}
