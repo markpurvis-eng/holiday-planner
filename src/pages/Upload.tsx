@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { getTrips, getBookings, getItinerary, uploadDocumentFile, createDocument } from '../lib/api'
 import type { Booking, DocumentType, ItineraryItem, Trip } from '../lib/types'
 import { formatDate } from '../lib/format'
@@ -28,6 +29,7 @@ function formatItineraryLabel(item: ItineraryItem) {
 }
 
 export default function Upload() {
+  const navigate = useNavigate()
   const [trips, setTrips] = useState<Trip[]>([])
   const [tripId, setTripId] = useState('')
   const [bookings, setBookings] = useState<Booking[]>([])
@@ -39,7 +41,6 @@ export default function Upload() {
   const [title, setTitle] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -77,9 +78,13 @@ export default function Upload() {
         booking_id: attachMode === 'booking' ? bookingId || null : null,
         itinerary_item_id: attachMode === 'itinerary' ? itineraryItemId || null : null,
       })
-      setSuccess(true)
-      setFile(null)
-      setTitle('')
+      if (attachMode === 'booking' && bookingId) {
+        navigate(`/trips/${tripId}?tab=bookings&highlight=${bookingId}`)
+      } else if (attachMode === 'itinerary' && itineraryItemId) {
+        navigate(`/trips/${tripId}?tab=itinerary&highlight=${itineraryItemId}`)
+      } else {
+        navigate(`/trips/${tripId}?tab=documents`)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed')
     } finally {
@@ -222,7 +227,6 @@ export default function Upload() {
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
-        {success && <p className="text-sm text-emerald-600">Uploaded!</p>}
 
         <button
           type="submit"

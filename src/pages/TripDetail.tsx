@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useSearchParams } from 'react-router-dom'
 import {
   getTrip,
   getBookings,
@@ -24,6 +24,11 @@ type Tab = 'bookings' | 'itinerary' | 'documents' | 'links' | 'todos'
 
 export default function TripDetail() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const VALID_TABS: Tab[] = ['bookings', 'itinerary', 'documents', 'links', 'todos']
+  const tabParam = searchParams.get('tab')
+  const initialTab = VALID_TABS.includes(tabParam as Tab) ? (tabParam as Tab) : 'bookings'
+  const highlightId = searchParams.get('highlight')
   const [trip, setTrip] = useState<Trip | null>(null)
   const [bookings, setBookings] = useState<Booking[]>([])
   const [itinerary, setItinerary] = useState<ItineraryItem[]>([])
@@ -31,7 +36,7 @@ export default function TripDetail() {
   const [links, setLinks] = useState<LinkType[]>([])
   const [todos, setTodos] = useState<Todo[]>([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<Tab>('bookings')
+  const [tab, setTab] = useState<Tab>(initialTab)
   const [newTodo, setNewTodo] = useState('')
   const [hideCancelled, setHideCancelled] = useState(false)
   const [paymentFilter, setPaymentFilter] = useState<'all' | Booking['payment_status']>('all')
@@ -56,6 +61,26 @@ export default function TripDetail() {
       })
       .finally(() => setLoading(false))
   }, [id])
+
+  // Scroll to the card the person was just sent back to (from Upload or Add
+  // Link), then clear the highlight from the URL after a few seconds so it
+  // doesn't stick around on refresh or when sharing the link.
+  useEffect(() => {
+    if (!highlightId || loading) return
+    const el = document.getElementById(`item-${highlightId}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const timeout = setTimeout(() => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          next.delete('highlight')
+          return next
+        },
+        { replace: true }
+      )
+    }, 2500)
+    return () => clearTimeout(timeout)
+  }, [highlightId, loading, setSearchParams])
 
   async function handleAddTodo(e: FormEvent) {
     e.preventDefault()
@@ -175,7 +200,13 @@ export default function TripDetail() {
               <EmptyState text="No bookings match the current filters." />
             )}
             {visibleBookings.map((b) => (
-              <div key={b.id} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100">
+              <div
+                key={b.id}
+                id={`item-${b.id}`}
+                className={`rounded-2xl bg-white p-4 shadow-sm transition-shadow ${
+                  b.id === highlightId ? 'ring-2 ring-teal-400' : 'ring-1 ring-stone-100'
+                }`}
+              >
                 <div className="flex items-center justify-between">
                   <h3
                     className={`font-semibold text-stone-800 ${b.cancelled ? 'line-through' : ''}`}
@@ -236,7 +267,10 @@ export default function TripDetail() {
             {visibleItinerary.map((item) => (
               <div
                 key={item.id}
-                className="flex gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100"
+                id={`item-${item.id}`}
+                className={`flex gap-3 rounded-2xl bg-white p-4 shadow-sm transition-shadow ${
+                  item.id === highlightId ? 'ring-2 ring-teal-400' : 'ring-1 ring-stone-100'
+                }`}
               >
                 <div className="w-16 shrink-0 text-sm text-stone-500">
                   <div>{formatDayAbbrev(item.date)}</div>

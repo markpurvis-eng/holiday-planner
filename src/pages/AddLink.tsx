@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { getTrips, getBookings, getItinerary, createLink } from '../lib/api'
 import type { Booking, ItineraryItem, Trip } from '../lib/types'
 import { formatDate } from '../lib/format'
@@ -12,6 +13,7 @@ function formatItineraryLabel(item: ItineraryItem) {
 }
 
 export default function AddLink() {
+  const navigate = useNavigate()
   const [trips, setTrips] = useState<Trip[]>([])
   const [tripId, setTripId] = useState('')
   const [bookings, setBookings] = useState<Booking[]>([])
@@ -22,7 +24,6 @@ export default function AddLink() {
   const [label, setLabel] = useState('')
   const [url, setUrl] = useState('')
   const [saving, setSaving] = useState(false)
-  const [success, setSuccess] = useState(false)
 
   useEffect(() => {
     getTrips().then((t) => {
@@ -56,9 +57,13 @@ export default function AddLink() {
         booking_id: attachMode === 'booking' ? bookingId || null : null,
         itinerary_item_id: attachMode === 'itinerary' ? itineraryItemId || null : null,
       })
-      setSuccess(true)
-      setLabel('')
-      setUrl('')
+      if (attachMode === 'booking' && bookingId) {
+        navigate(`/trips/${tripId}?tab=bookings&highlight=${bookingId}`)
+      } else if (attachMode === 'itinerary' && itineraryItemId) {
+        navigate(`/trips/${tripId}?tab=itinerary&highlight=${itineraryItemId}`)
+      } else {
+        navigate(`/trips/${tripId}?tab=links`)
+      }
     } finally {
       setSaving(false)
     }
@@ -169,8 +174,6 @@ export default function AddLink() {
             </select>
           )}
         </div>
-
-        {success && <p className="text-sm text-emerald-600">Link saved!</p>}
 
         <button
           type="submit"
