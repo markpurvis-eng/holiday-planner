@@ -11,16 +11,7 @@ import Settings from './pages/Settings'
 
 function Shell({ children }: { children: ReactNode }) {
   return (
-    // overflow-x-hidden is a deliberate defensive guard: a flex child
-    // anywhere in the tree missing min-w-0 can force the page wider than
-    // the viewport (this bit TripDetail's itinerary cards — see
-    // AttachedItems.tsx / TripDetail.tsx fixes), and mobile Safari/Chrome
-    // are known to mishandle position: fixed/sticky when that happens —
-    // BottomNav becomes only reachable by scrolling, sticky headers stop
-    // sticking. Desktop browsers don't show the same breakage (plenty of
-    // window width to absorb it), which is why this class of bug is easy
-    // to miss without testing on an actual phone.
-    <div className="min-h-screen overflow-x-hidden bg-[#fdf8f3]">
+    <div className="min-h-screen bg-[#fdf8f3]">
       {children}
       <BottomNav />
     </div>
