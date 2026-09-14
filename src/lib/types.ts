@@ -64,6 +64,7 @@ export type ItineraryItem = {
   cancelled: boolean
   cost: number | null
   currency: string | null
+  payment_status: PaymentStatus
   created_at: string
   destination_name: string | null
   destination_lat: number | null

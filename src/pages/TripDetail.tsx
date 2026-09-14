@@ -19,6 +19,7 @@ import { LoadingSpinner } from '../components/LoadingSpinner'
 import { formatMoney, formatTime, formatDayAbbrev, formatDate, daysUntil, todayDateString } from '../lib/format'
 import { WeatherForecast } from '../components/WeatherForecast'
 import { resolveTodaysLocation } from '../lib/weather'
+import { PaymentBadge } from '../components/PaymentBadge'
 
 type Tab = 'bookings' | 'itinerary' | 'documents' | 'links' | 'todos'
 
@@ -133,7 +134,9 @@ export default function TripDetail() {
   const visibleBookings = bookings
     .filter((b) => !hideCancelled || !b.cancelled)
     .filter((b) => paymentFilters.size === 0 || paymentFilters.has(b.payment_status))
-  const visibleItinerary = hideCancelled ? itinerary.filter((item) => !item.cancelled) : itinerary
+  const visibleItinerary = itinerary
+    .filter((item) => !hideCancelled || !item.cancelled)
+    .filter((item) => paymentFilters.size === 0 || (item.cost != null && paymentFilters.has(item.payment_status)))
 
   // Once the trip has started (and hasn't ended), prefer today's actual
   // location — from today's itinerary item if there is one (e.g. a cruise's
@@ -198,7 +201,7 @@ export default function TripDetail() {
         </label>
       )}
 
-      {tab === 'bookings' && (
+      {(tab === 'bookings' || tab === 'itinerary') && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           <button
             type="button"
@@ -261,17 +264,7 @@ export default function TripDetail() {
                         Cancelled
                       </span>
                     )}
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                        b.payment_status === 'paid'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : b.payment_status === 'partially_paid'
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-red-100 text-red-700'
-                      }`}
-                    >
-                      {b.payment_status.replace('_', ' ')}
-                    </span>
+                    <PaymentBadge status={b.payment_status} />
                   </div>
                 </div>
                 {b.confirmation_ref && (
@@ -304,7 +297,7 @@ export default function TripDetail() {
           <>
             {itinerary.length === 0 && <EmptyState text="No itinerary items yet." />}
             {itinerary.length > 0 && visibleItinerary.length === 0 && (
-              <EmptyState text="All itinerary items are cancelled." />
+              <EmptyState text="No itinerary items match the current filters." />
             )}
             {visibleItinerary.map((item) => (
               <div
@@ -337,7 +330,10 @@ export default function TripDetail() {
                     <p className="text-sm text-stone-500">Ref: {item.reference}</p>
                   )}
                   {item.cost != null && (
-                    <p className="text-sm text-stone-500">{formatMoney(item.cost, item.currency)}</p>
+                    <div className="mt-0.5 flex items-center gap-2">
+                      <p className="text-sm text-stone-500">{formatMoney(item.cost, item.currency)}</p>
+                      <PaymentBadge status={item.payment_status} />
+                    </div>
                   )}
                   <AttachedItems
                     documents={documents.filter((d) => d.itinerary_item_id === item.id)}
