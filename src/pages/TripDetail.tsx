@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useParams, Link, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import {
   getTrip,
   getBookings,
@@ -53,6 +53,7 @@ export default function TripDetail() {
   const [tab, setTab] = useState<Tab>(initialTab)
   const [newTodo, setNewTodo] = useState('')
   const [hideCancelled, setHideCancelled] = useState(false)
+  const [tripHeaderExpanded, setTripHeaderExpanded] = useState(false)
   const [paymentFilters, setPaymentFilters] = useState<Set<Booking['payment_status']>>(new Set())
 
   // Toggles one status in/out of the payment filter set — e.g. Unpaid and
@@ -161,34 +162,49 @@ export default function TripDetail() {
   const weatherLat = todaysLocation?.lat ?? trip.destination_lat
   const weatherLng = todaysLocation?.lng ?? trip.destination_lng
   const weatherName = todaysLocation?.name ?? trip.destination_name
+  const weatherVisible =
+    weatherLat != null && weatherLng != null && daysUntil(trip.start_date) <= 10 && daysUntil(trip.end_date) >= 0
+
+  // The trip header only becomes collapsible when the weather card is also
+  // showing, and only on Bookings/Itinerary (the two tabs with filters
+  // stacked underneath) — that's the specific combination that runs short
+  // on screen height on a phone. Elsewhere it's always shown in full.
+  const tripHeaderCollapsible = weatherVisible && (tab === 'bookings' || tab === 'itinerary')
+  const showFullTripHeader = !tripHeaderCollapsible || tripHeaderExpanded
+  const TripHeaderTag = tripHeaderCollapsible ? 'button' : 'div'
 
   return (
     <div className="mx-auto max-w-lg px-4 pb-24">
-      <Link to="/" className="mb-4 mt-6 inline-block text-sm text-teal-700">
-        ← Back to trips
-      </Link>
-
       <div id="trip-sticky-header" className="sticky top-0 z-10 -mx-4 bg-[#fdf8f3] px-4 pb-2 pt-4">
-        <div className="mb-6 flex items-center gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100">
+        <TripHeaderTag
+          {...(tripHeaderCollapsible
+            ? { type: 'button', onClick: () => setTripHeaderExpanded((prev) => !prev) }
+            : {})}
+          className={`mb-6 flex w-full items-center gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100 ${
+            tripHeaderCollapsible ? 'text-left' : ''
+          }`}
+        >
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-3xl">
             {trip.trip_type?.icon ?? '🧳'}
           </div>
-          <div>
+          <div className="min-w-0 flex-1">
             <h1 className="text-xl font-bold text-stone-800">{trip.name}</h1>
-            <p className="text-sm text-stone-500">
-              {formatDate(trip.start_date)} –{' '}
-              {formatDate(trip.end_date)}
-              {trip.nights ? ` · ${trip.nights} nights` : ''}
-            </p>
+            {showFullTripHeader && (
+              <p className="text-sm text-stone-500">
+                {formatDate(trip.start_date)} –{' '}
+                {formatDate(trip.end_date)}
+                {trip.nights ? ` · ${trip.nights} nights` : ''}
+              </p>
+            )}
           </div>
-        </div>
-
-        {weatherLat != null &&
-          weatherLng != null &&
-          daysUntil(trip.start_date) <= 10 &&
-          daysUntil(trip.end_date) >= 0 && (
-            <WeatherForecast lat={weatherLat} lng={weatherLng} destinationName={weatherName} />
+          {tripHeaderCollapsible && (
+            <span className="shrink-0 text-xs text-stone-400">{tripHeaderExpanded ? '▲' : '▼'}</span>
           )}
+        </TripHeaderTag>
+
+        {weatherVisible && (
+          <WeatherForecast lat={weatherLat} lng={weatherLng} destinationName={weatherName} />
+        )}
 
         <TabBar<Tab>
           tabs={[
