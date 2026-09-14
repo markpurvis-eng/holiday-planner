@@ -38,6 +38,7 @@ $FileMap = @{
     'format.ts'         = 'lib\format.ts'
     'types.ts'          = 'lib\types.ts'
     'weather.ts'        = 'lib\weather.ts'
+    'settings.ts'       = 'lib\settings.ts'
     'version.ts'        = 'lib\version.ts'
     'TripDetail.tsx'    = 'pages\TripDetail.tsx'
     'AddLink.tsx'       = 'pages\AddLink.tsx'

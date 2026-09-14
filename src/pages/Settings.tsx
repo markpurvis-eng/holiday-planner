@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { getTripTypes, createTripType } from '../lib/api'
 import type { TripType } from '../lib/types'
 import { APP_VERSION } from '../lib/version'
+import { getHideCancelledItems, setHideCancelledItems } from '../lib/settings'
 
 const EMOJI_OPTIONS = ['🚢', '🏖️', '🎒', '🧳', '✈️', '🏔️', '🏕️', '🎡', '🚗', '🏙️']
 
@@ -11,6 +12,7 @@ export default function Settings() {
   const [name, setName] = useState('')
   const [icon, setIcon] = useState(EMOJI_OPTIONS[0])
   const [saving, setSaving] = useState(false)
+  const [hideCancelled, setHideCancelled] = useState(() => getHideCancelledItems())
 
   useEffect(() => {
     getTripTypes().then(setTripTypes)
@@ -32,6 +34,26 @@ export default function Settings() {
   return (
     <div className="mx-auto max-w-lg px-4 pb-24 pt-6">
       <h1 className="mb-6 text-2xl font-bold text-stone-800">Settings</h1>
+
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-stone-400">
+          Display
+        </h2>
+        <label className="flex items-center justify-between rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100">
+          <span className="text-sm font-medium text-stone-700">
+            Hide cancelled items on Bookings/Itinerary
+          </span>
+          <input
+            type="checkbox"
+            checked={hideCancelled}
+            onChange={(e) => {
+              setHideCancelled(e.target.checked)
+              setHideCancelledItems(e.target.checked)
+            }}
+            className="h-4 w-4 rounded border-stone-300 text-teal-600 focus:ring-teal-500"
+          />
+        </label>
+      </section>
 
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-stone-400">

@@ -19,6 +19,7 @@ import { LoadingSpinner } from '../components/LoadingSpinner'
 import { formatMoney, formatTime, formatDayAbbrev, formatDate, daysUntil, todayDateString } from '../lib/format'
 import { WeatherForecast } from '../components/WeatherForecast'
 import { resolveTodaysLocation } from '../lib/weather'
+import { getHideCancelledItems } from '../lib/settings'
 import { PaymentBadge } from '../components/PaymentBadge'
 
 type Tab = 'bookings' | 'itinerary' | 'documents' | 'links' | 'todos'
@@ -52,7 +53,7 @@ export default function TripDetail() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>(initialTab)
   const [newTodo, setNewTodo] = useState('')
-  const [hideCancelled, setHideCancelled] = useState(false)
+  const [hideCancelled] = useState(() => getHideCancelledItems())
   const [tripHeaderExpanded, setTripHeaderExpanded] = useState(false)
   const [paymentFilters, setPaymentFilters] = useState<Set<Booking['payment_status']>>(new Set())
 
@@ -115,7 +116,7 @@ export default function TripDetail() {
   // later". Skipped when a highlight target is already driving the scroll
   // (arriving from Upload/Add Link) — that's the more specific destination.
   // Only depends on tab and the raw data (not the filtered visible lists),
-  // so toggling hideCancelled/paymentFilters doesn't re-trigger it.
+  // so toggling the payment filter doesn't re-trigger it.
   useEffect(() => {
     if (loading || highlightId) return
     if (tab !== 'bookings' && tab !== 'itinerary') return
@@ -217,18 +218,6 @@ export default function TripDetail() {
           active={tab}
           onChange={setTab}
         />
-
-        {(tab === 'bookings' || tab === 'itinerary') && (
-          <label className="mt-3 flex items-center gap-2 text-sm text-stone-600">
-            <input
-              type="checkbox"
-              checked={hideCancelled}
-              onChange={(e) => setHideCancelled(e.target.checked)}
-              className="h-4 w-4 rounded border-stone-300 text-teal-600 focus:ring-teal-500"
-            />
-            Hide cancelled items
-          </label>
-        )}
 
         {(tab === 'bookings' || tab === 'itinerary') && (
           <div className="mt-2 flex flex-wrap gap-1.5">
