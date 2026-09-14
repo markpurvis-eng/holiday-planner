@@ -82,6 +82,26 @@ export default function TripDetail() {
     return () => clearTimeout(timeout)
   }, [highlightId, loading, setSearchParams])
 
+  // On landing on Bookings or Itinerary, scroll so current-day items sit at
+  // the top of the screen, with past days scrollable up and future days
+  // scrollable down. Both lists come sorted ascending by date already
+  // (getBookings/getItinerary), so this is just "first item today or
+  // later". Skipped when a highlight target is already driving the scroll
+  // (arriving from Upload/Add Link) — that's the more specific destination.
+  // Only depends on tab and the raw data (not the filtered visible lists),
+  // so toggling hideCancelled/paymentFilter doesn't re-trigger it.
+  useEffect(() => {
+    if (loading || highlightId) return
+    if (tab !== 'bookings' && tab !== 'itinerary') return
+    const todayStr = todayDateString()
+    const targetId =
+      tab === 'itinerary'
+        ? itinerary.find((item) => item.date >= todayStr)?.id
+        : bookings.find((b) => (b.end_date ?? b.start_date ?? '') >= todayStr)?.id
+    if (!targetId) return
+    document.getElementById(`item-${targetId}`)?.scrollIntoView({ behavior: 'auto', block: 'start' })
+  }, [tab, loading, highlightId, itinerary, bookings])
+
   async function handleAddTodo(e: FormEvent) {
     e.preventDefault()
     if (!id || !newTodo.trim()) return
