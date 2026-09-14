@@ -34,6 +34,7 @@ param(
 
 # Filename -> path relative to src\
 $FileMap = @{
+    'App.tsx'           = 'App.tsx'
     'format.ts'         = 'lib\format.ts'
     'types.ts'          = 'lib\types.ts'
     'weather.ts'        = 'lib\weather.ts'

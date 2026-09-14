@@ -20,7 +20,7 @@ export function AttachedItems({
           className="flex items-center gap-2 text-sm text-stone-600 hover:text-teal-700"
         >
           <span>{doc.type === 'photo' ? '📷' : '📄'}</span>
-          <span className="truncate">{doc.title ?? 'Document'}</span>
+          <span className="min-w-0 flex-1 truncate">{doc.title ?? 'Document'}</span>
         </a>
       ))}
       {links.map((link) => (
@@ -32,7 +32,7 @@ export function AttachedItems({
           className="flex items-center gap-2 text-sm text-stone-600 hover:text-teal-700"
         >
           <span>🔗</span>
-          <span className="truncate">{link.label}</span>
+          <span className="min-w-0 flex-1 truncate">{link.label}</span>
         </a>
       ))}
     </div>
