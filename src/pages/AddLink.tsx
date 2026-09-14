@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { getTrips, getBookings, getItinerary, createLink } from '../lib/api'
 import type { Booking, ItineraryItem, Trip } from '../lib/types'
-import { formatDate } from '../lib/format'
+import { formatDate, daysUntil } from '../lib/format'
 
 type AttachMode = 'trip' | 'booking' | 'itinerary'
 
@@ -14,6 +14,8 @@ function formatItineraryLabel(item: ItineraryItem) {
 
 export default function AddLink() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const defaultTripId = searchParams.get('trip')
   const [trips, setTrips] = useState<Trip[]>([])
   const [tripId, setTripId] = useState('')
   const [bookings, setBookings] = useState<Booking[]>([])
@@ -28,9 +30,18 @@ export default function AddLink() {
   useEffect(() => {
     getTrips().then((t) => {
       setTrips(t)
-      if (t.length > 0) setTripId(t[0].id)
+      // No ?trip= param — default to whichever trip is actually under way
+      // today by date, not the stored `status` column (which can lag —
+      // a trip can still say "upcoming" after it's started), falling back
+      // to the first trip in the list if none is currently active.
+      const activeTrip = t.find((trip) => daysUntil(trip.start_date) <= 0 && daysUntil(trip.end_date) >= 0)
+      const preferred =
+        defaultTripId && t.some((trip) => trip.id === defaultTripId)
+          ? defaultTripId
+          : activeTrip?.id ?? t[0]?.id
+      if (preferred) setTripId(preferred)
     })
-  }, [])
+  }, [defaultTripId])
 
   useEffect(() => {
     if (!tripId) {
