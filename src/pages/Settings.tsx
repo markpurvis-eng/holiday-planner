@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { getTripTypes, createTripType } from '../lib/api'
 import type { TripType } from '../lib/types'
+import { APP_VERSION } from '../lib/version'
 
 const EMOJI_OPTIONS = ['🚢', '🏖️', '🎒', '🧳', '✈️', '🏔️', '🏕️', '🎡', '🚗', '🏙️']
 
@@ -89,6 +90,8 @@ export default function Settings() {
           </button>
         </form>
       </section>
+
+      <p className="mt-10 text-center text-xs text-stone-300">{APP_VERSION}</p>
     </div>
   )
 }
