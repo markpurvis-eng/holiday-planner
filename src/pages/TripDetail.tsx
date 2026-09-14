@@ -23,6 +23,19 @@ import { PaymentBadge } from '../components/PaymentBadge'
 
 type Tab = 'bookings' | 'itinerary' | 'documents' | 'links' | 'todos'
 
+// Scrolls a card into view sitting just below the sticky header, instead of
+// scrollIntoView's block:'start'/'center', which would tuck the card
+// underneath the sticky header — position: sticky covers that same space,
+// so the usual viewport-relative alignment ends up hidden behind it.
+function scrollToItem(targetId: string, behavior: ScrollBehavior) {
+  const el = document.getElementById(`item-${targetId}`)
+  if (!el) return
+  const header = document.getElementById('trip-sticky-header')
+  const headerHeight = header?.getBoundingClientRect().height ?? 0
+  const elTop = el.getBoundingClientRect().top + window.scrollY
+  window.scrollTo({ top: elTop - headerHeight - 12, behavior })
+}
+
 export default function TripDetail() {
   const { id } = useParams<{ id: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -80,8 +93,7 @@ export default function TripDetail() {
   // doesn't stick around on refresh or when sharing the link.
   useEffect(() => {
     if (!highlightId || loading) return
-    const el = document.getElementById(`item-${highlightId}`)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    scrollToItem(highlightId, 'smooth')
     const timeout = setTimeout(() => {
       setSearchParams(
         (prev) => {
@@ -112,7 +124,7 @@ export default function TripDetail() {
         ? itinerary.find((item) => item.date >= todayStr)?.id
         : bookings.find((b) => (b.end_date ?? b.start_date ?? '') >= todayStr)?.id
     if (!targetId) return
-    document.getElementById(`item-${targetId}`)?.scrollIntoView({ behavior: 'auto', block: 'start' })
+    scrollToItem(targetId, 'auto')
   }, [tab, loading, highlightId, itinerary, bookings])
 
   async function handleAddTodo(e: FormEvent) {
@@ -151,91 +163,93 @@ export default function TripDetail() {
   const weatherName = todaysLocation?.name ?? trip.destination_name
 
   return (
-    <div className="mx-auto max-w-lg px-4 pb-24 pt-6">
-      <Link to="/" className="mb-4 inline-block text-sm text-teal-700">
+    <div className="mx-auto max-w-lg px-4 pb-24">
+      <Link to="/" className="mb-4 mt-6 inline-block text-sm text-teal-700">
         ← Back to trips
       </Link>
 
-      <div className="mb-6 flex items-center gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-3xl">
-          {trip.trip_type?.icon ?? '🧳'}
+      <div id="trip-sticky-header" className="sticky top-0 z-10 -mx-4 bg-[#fdf8f3] px-4 pb-2 pt-4">
+        <div className="mb-6 flex items-center gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-3xl">
+            {trip.trip_type?.icon ?? '🧳'}
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-stone-800">{trip.name}</h1>
+            <p className="text-sm text-stone-500">
+              {formatDate(trip.start_date)} –{' '}
+              {formatDate(trip.end_date)}
+              {trip.nights ? ` · ${trip.nights} nights` : ''}
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-xl font-bold text-stone-800">{trip.name}</h1>
-          <p className="text-sm text-stone-500">
-            {formatDate(trip.start_date)} –{' '}
-            {formatDate(trip.end_date)}
-            {trip.nights ? ` · ${trip.nights} nights` : ''}
-          </p>
-        </div>
-      </div>
 
-      {weatherLat != null &&
-        weatherLng != null &&
-        daysUntil(trip.start_date) <= 10 &&
-        daysUntil(trip.end_date) >= 0 && (
-          <WeatherForecast lat={weatherLat} lng={weatherLng} destinationName={weatherName} />
+        {weatherLat != null &&
+          weatherLng != null &&
+          daysUntil(trip.start_date) <= 10 &&
+          daysUntil(trip.end_date) >= 0 && (
+            <WeatherForecast lat={weatherLat} lng={weatherLng} destinationName={weatherName} />
+          )}
+
+        <TabBar<Tab>
+          tabs={[
+            { id: 'bookings', label: 'Bookings' },
+            { id: 'itinerary', label: 'Itinerary' },
+            { id: 'documents', label: 'Documents' },
+            { id: 'links', label: 'Links' },
+            { id: 'todos', label: 'To-dos' },
+          ]}
+          active={tab}
+          onChange={setTab}
+        />
+
+        {(tab === 'bookings' || tab === 'itinerary') && (
+          <label className="mt-3 flex items-center gap-2 text-sm text-stone-600">
+            <input
+              type="checkbox"
+              checked={hideCancelled}
+              onChange={(e) => setHideCancelled(e.target.checked)}
+              className="h-4 w-4 rounded border-stone-300 text-teal-600 focus:ring-teal-500"
+            />
+            Hide cancelled items
+          </label>
         )}
 
-      <TabBar<Tab>
-        tabs={[
-          { id: 'bookings', label: 'Bookings' },
-          { id: 'itinerary', label: 'Itinerary' },
-          { id: 'documents', label: 'Documents' },
-          { id: 'links', label: 'Links' },
-          { id: 'todos', label: 'To-dos' },
-        ]}
-        active={tab}
-        onChange={setTab}
-      />
-
-      {(tab === 'bookings' || tab === 'itinerary') && (
-        <label className="mt-3 flex items-center gap-2 text-sm text-stone-600">
-          <input
-            type="checkbox"
-            checked={hideCancelled}
-            onChange={(e) => setHideCancelled(e.target.checked)}
-            className="h-4 w-4 rounded border-stone-300 text-teal-600 focus:ring-teal-500"
-          />
-          Hide cancelled items
-        </label>
-      )}
-
-      {(tab === 'bookings' || tab === 'itinerary') && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          <button
-            type="button"
-            onClick={() => setPaymentFilters(new Set())}
-            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-              paymentFilters.size === 0
-                ? 'bg-teal-600 text-white'
-                : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-            }`}
-          >
-            All
-          </button>
-          {(
-            [
-              { id: 'unpaid', label: 'Unpaid' },
-              { id: 'partially_paid', label: 'Partially paid' },
-              { id: 'paid', label: 'Paid' },
-            ] as const
-          ).map((option) => (
+        {(tab === 'bookings' || tab === 'itinerary') && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
             <button
-              key={option.id}
               type="button"
-              onClick={() => togglePaymentFilter(option.id)}
+              onClick={() => setPaymentFilters(new Set())}
               className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                paymentFilters.has(option.id)
+                paymentFilters.size === 0
                   ? 'bg-teal-600 text-white'
                   : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
               }`}
             >
-              {option.label}
+              All
             </button>
-          ))}
-        </div>
-      )}
+            {(
+              [
+                { id: 'unpaid', label: 'Unpaid' },
+                { id: 'partially_paid', label: 'Partially paid' },
+                { id: 'paid', label: 'Paid' },
+              ] as const
+            ).map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => togglePaymentFilter(option.id)}
+                className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                  paymentFilters.has(option.id)
+                    ? 'bg-teal-600 text-white'
+                    : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="mt-4 space-y-4">
         {tab === 'bookings' && (
