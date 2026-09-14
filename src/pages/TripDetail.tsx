@@ -39,7 +39,19 @@ export default function TripDetail() {
   const [tab, setTab] = useState<Tab>(initialTab)
   const [newTodo, setNewTodo] = useState('')
   const [hideCancelled, setHideCancelled] = useState(false)
-  const [paymentFilter, setPaymentFilter] = useState<'all' | Booking['payment_status']>('all')
+  const [paymentFilters, setPaymentFilters] = useState<Set<Booking['payment_status']>>(new Set())
+
+  // Toggles one status in/out of the payment filter set — e.g. Unpaid and
+  // Partially paid can both be active at once. An empty set means no
+  // filter is applied (shows every status).
+  function togglePaymentFilter(status: Booking['payment_status']) {
+    setPaymentFilters((prev) => {
+      const next = new Set(prev)
+      if (next.has(status)) next.delete(status)
+      else next.add(status)
+      return next
+    })
+  }
 
   useEffect(() => {
     if (!id) return
@@ -89,7 +101,7 @@ export default function TripDetail() {
   // later". Skipped when a highlight target is already driving the scroll
   // (arriving from Upload/Add Link) — that's the more specific destination.
   // Only depends on tab and the raw data (not the filtered visible lists),
-  // so toggling hideCancelled/paymentFilter doesn't re-trigger it.
+  // so toggling hideCancelled/paymentFilters doesn't re-trigger it.
   useEffect(() => {
     if (loading || highlightId) return
     if (tab !== 'bookings' && tab !== 'itinerary') return
@@ -120,7 +132,7 @@ export default function TripDetail() {
 
   const visibleBookings = bookings
     .filter((b) => !hideCancelled || !b.cancelled)
-    .filter((b) => paymentFilter === 'all' || b.payment_status === paymentFilter)
+    .filter((b) => paymentFilters.size === 0 || paymentFilters.has(b.payment_status))
   const visibleItinerary = hideCancelled ? itinerary.filter((item) => !item.cancelled) : itinerary
 
   // Once the trip has started (and hasn't ended), prefer today's actual
@@ -188,9 +200,19 @@ export default function TripDetail() {
 
       {tab === 'bookings' && (
         <div className="mt-2 flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setPaymentFilters(new Set())}
+            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+              paymentFilters.size === 0
+                ? 'bg-teal-600 text-white'
+                : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+            }`}
+          >
+            All
+          </button>
           {(
             [
-              { id: 'all', label: 'All' },
               { id: 'unpaid', label: 'Unpaid' },
               { id: 'partially_paid', label: 'Partially paid' },
               { id: 'paid', label: 'Paid' },
@@ -199,9 +221,9 @@ export default function TripDetail() {
             <button
               key={option.id}
               type="button"
-              onClick={() => setPaymentFilter(option.id)}
+              onClick={() => togglePaymentFilter(option.id)}
               className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                paymentFilter === option.id
+                paymentFilters.has(option.id)
                   ? 'bg-teal-600 text-white'
                   : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
               }`}
