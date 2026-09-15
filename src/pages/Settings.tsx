@@ -50,9 +50,13 @@ export default function Settings() {
     }
   }
 
+  function buildShareMessage(trip: Trip, url: string): string {
+    return `Here is Mark and Andi's itinerary for their ${trip.name} trip.\n\n${url}\n\nSent from Mark's Holiday Planner app (powered by Claude)`
+  }
+
   // Web Share API needs a direct user gesture, so this is only ever called
-  // from the button's onClick. Falls back to copying the link, since Web
-  // Share support on desktop browsers is patchy.
+  // from the button's onClick. Falls back to copying the full message,
+  // since Web Share support on desktop browsers is patchy.
   async function handleShareItinerary() {
     if (!selectedTrip) return
     const url = getItineraryPdfUrl(selectedTrip.id)
@@ -60,11 +64,13 @@ export default function Settings() {
     const signature = `Sent from Mark's Holiday Planner app (powered by Claude)`
     if (navigator.share) {
       try {
-        // `url` is passed as its own field (not folded into `text`) —
-        // some Android share targets, Gmail included, appear to key off
-        // it being present to register as a target at all. Most apps
-        // that combine text+url do so as text, then a blank line, then
-        // the url, which is why the message text ends without the link.
+        // `url` is its own field (not folded into `text`) so apps that
+        // need it present to register as a share target (e.g. WhatsApp)
+        // still see it. Known limitation: Gmail's Android share handler
+        // detects the URL and drops any accompanying text regardless of
+        // what's sent here — that's Gmail's own intent handling, not
+        // something fixable from this API. Use "Copy message" below and
+        // paste into Gmail directly if you need the full text there.
         await navigator.share({ title: `${selectedTrip.name} itinerary`, text: `${intro}\n\n${signature}`, url })
       } catch {
         // AbortError (user cancelled the share sheet) — nothing to do.
@@ -72,10 +78,24 @@ export default function Settings() {
       return
     }
     try {
-      await navigator.clipboard.writeText(`${intro}\n\n${url}\n\n${signature}`)
+      await navigator.clipboard.writeText(buildShareMessage(selectedTrip, url))
       setShareNotice('Message copied to clipboard.')
     } catch {
-      setShareNotice(`${intro}\n\n${url}\n\n${signature}`)
+      setShareNotice(buildShareMessage(selectedTrip, url))
+    }
+  }
+
+  // Always-available alternative to the Share button, for apps (Gmail)
+  // whose share-intent handling strips the message text.
+  async function handleCopyMessage() {
+    if (!selectedTrip) return
+    const url = getItineraryPdfUrl(selectedTrip.id)
+    const message = buildShareMessage(selectedTrip, url)
+    try {
+      await navigator.clipboard.writeText(message)
+      setShareNotice('Message copied to clipboard.')
+    } catch {
+      setShareNotice(message)
     }
   }
 
@@ -165,7 +185,22 @@ export default function Settings() {
                 Share
               </button>
             )}
+            {selectedTrip?.public_itinerary_generated_at && (
+              <button
+                type="button"
+                onClick={handleCopyMessage}
+                className="rounded-full bg-stone-100 px-3 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-200"
+              >
+                Copy message
+              </button>
+            )}
           </div>
+          {selectedTrip?.public_itinerary_generated_at && (
+            <p className="text-xs text-stone-400">
+              Gmail's share handler drops any text alongside a link — use "Copy message" and paste
+              directly into Gmail if you want the full text there.
+            </p>
+          )}
           {shareNotice && <p className="text-xs text-stone-400">{shareNotice}</p>}
         </div>
       </section>
