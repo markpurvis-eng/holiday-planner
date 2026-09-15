@@ -60,6 +60,24 @@ export function buildDayGroups(bookings: Booking[], itinerary: ItineraryItem[]):
 const PAGE_MARGIN = 15
 const LINE_HEIGHT = 6
 
+// jsPDF's built-in fonts (Helvetica etc.) only support WinAnsi/Latin-1
+// characters. Anything outside that - most commonly arrows typed into
+// transfer/flight-routing text ("Heathrow -> Gatwick") or curly
+// quotes/ellipses - doesn't just render as a missing glyph: it appears to
+// push jsPDF into a fallback rendering path that spaces every character
+// in the line evenly, which is what "spaced out on some lines" actually
+// was. Replacing the problem characters with plain ASCII equivalents
+// before anything reaches doc.text() avoids that fallback entirely.
+function sanitizeForPdf(text: string): string {
+  return text
+    .replace(/[\u2192\u21D2\u27A1\u2794]/g, '->') // rightwards arrows
+    .replace(/[\u2190\u21D0]/g, '<-') // leftwards arrows
+    .replace(/[\u2013\u2014]/g, '-') // en/em dash
+    .replace(/[\u2018\u2019]/g, "'") // curly single quotes
+    .replace(/[\u201C\u201D]/g, '"') // curly double quotes
+    .replace(/\u2026/g, '...') // ellipsis
+}
+
 // Builds the shared itinerary as a PDF Blob. Deliberately excludes cost,
 // currency, payment_status, reference/confirmation numbers, and
 // booking.check_in_details (free text, could contain anything sensitive) —
@@ -88,7 +106,7 @@ export function generateItineraryPdf(trip: Trip, bookings: Booking[], itinerary:
     doc.setFont('helvetica', style)
     doc.setFontSize(size)
     const maxWidth = pageWidth - PAGE_MARGIN * 2 - indent
-    const wrapped = doc.splitTextToSize(text, maxWidth) as string[]
+    const wrapped = doc.splitTextToSize(sanitizeForPdf(text), maxWidth) as string[]
     for (const wline of wrapped) {
       ensureSpace(LINE_HEIGHT)
       doc.text(wline, PAGE_MARGIN + indent, y)
