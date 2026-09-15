@@ -56,24 +56,26 @@ export default function Settings() {
   async function handleShareItinerary() {
     if (!selectedTrip) return
     const url = getItineraryPdfUrl(selectedTrip.id)
-    const message = `Here is Mark and Andi's itinerary for their ${selectedTrip.name} trip.\n\n${url}\n\nSent from Mark's Holiday Planner app (powered by Claude)`
+    const intro = `Here is Mark and Andi's itinerary for their ${selectedTrip.name} trip.`
+    const signature = `Sent from Mark's Holiday Planner app (powered by Claude)`
     if (navigator.share) {
       try {
-        // Deliberately putting the link inside `text` rather than also
-        // passing a separate `url` field — some share targets (e.g. mail
-        // apps) append `url` again on its own line even when it's already
-        // part of `text`, which would show the link twice.
-        await navigator.share({ title: `${selectedTrip.name} itinerary`, text: message })
+        // `url` is passed as its own field (not folded into `text`) —
+        // some Android share targets, Gmail included, appear to key off
+        // it being present to register as a target at all. Most apps
+        // that combine text+url do so as text, then a blank line, then
+        // the url, which is why the message text ends without the link.
+        await navigator.share({ title: `${selectedTrip.name} itinerary`, text: `${intro}\n\n${signature}`, url })
       } catch {
         // AbortError (user cancelled the share sheet) — nothing to do.
       }
       return
     }
     try {
-      await navigator.clipboard.writeText(message)
+      await navigator.clipboard.writeText(`${intro}\n\n${url}\n\n${signature}`)
       setShareNotice('Message copied to clipboard.')
     } catch {
-      setShareNotice(message)
+      setShareNotice(`${intro}\n\n${url}\n\n${signature}`)
     }
   }
 
