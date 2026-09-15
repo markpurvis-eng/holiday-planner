@@ -22,6 +22,7 @@ import { resolveTodaysLocation } from '../lib/weather'
 import { getHideCancelledItems } from '../lib/settings'
 import { PaymentBadge } from '../components/PaymentBadge'
 import { mergeItineraryTimeline } from '../lib/itineraryTimeline'
+import { buildAttachmentGroups } from '../lib/attachmentGroups'
 
 type Tab = 'bookings' | 'itinerary' | 'documents' | 'links' | 'todos'
 
@@ -161,19 +162,22 @@ export default function TripDetail() {
   const bookingsForTimeline = bookings.filter((b) => !hideCancelled || !b.cancelled)
   const timeline = mergeItineraryTimeline(bookingsForTimeline, visibleItinerary)
 
-  // Jumps from a booking marker on the Itinerary tab to that booking's own
-  // card on the Bookings tab. `tab` is local state (only read from the URL
-  // once, on mount), so it needs setting directly here — updating
-  // searchParams alone wouldn't switch the visible tab.
-  function handleJumpToBooking(bookingId: string) {
-    setTab('bookings')
+  // Jumps to and highlights a specific booking/itinerary-item card on its
+  // own tab. `tab` is local state (only read from the URL once, on mount),
+  // so it needs setting directly here — updating searchParams alone
+  // wouldn't switch the visible tab.
+  function handleJumpTo(targetTab: 'bookings' | 'itinerary', id: string) {
+    setTab(targetTab)
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
-      next.set('tab', 'bookings')
-      next.set('highlight', bookingId)
+      next.set('tab', targetTab)
+      next.set('highlight', id)
       return next
     })
   }
+
+  const documentGroups = buildAttachmentGroups(documents, bookings, itinerary, handleJumpTo)
+  const linkGroups = buildAttachmentGroups(links, bookings, itinerary, handleJumpTo)
 
   // Once the trip has started (and hasn't ended), prefer today's actual
   // location — from today's itinerary item if there is one (e.g. a cruise's
@@ -352,7 +356,7 @@ export default function TripDetail() {
                   <button
                     key={`${entry.kind}-${booking.id}`}
                     type="button"
-                    onClick={() => handleJumpToBooking(booking.id)}
+                    onClick={() => handleJumpTo('bookings', booking.id)}
                     className="flex w-full items-center gap-3 rounded-2xl bg-stone-50 p-4 text-left shadow-sm ring-1 ring-stone-200 transition-shadow hover:ring-teal-300"
                   >
                     <div className="w-16 shrink-0 text-sm text-stone-500">
@@ -425,11 +429,32 @@ export default function TripDetail() {
         {tab === 'documents' && (
           <>
             {documents.length === 0 && <EmptyState text="No documents yet." />}
-            <div className="space-y-5">
-              <DocumentGroup type="confirmation" documents={documents.filter((d) => d.type === 'confirmation')} />
-              <DocumentGroup type="photo" documents={documents.filter((d) => d.type === 'photo')} />
-              <DocumentGroup type="receipt" documents={documents.filter((d) => d.type === 'receipt')} />
-              <DocumentGroup type="guide" documents={documents.filter((d) => d.type === 'guide')} />
+            <div className="space-y-6">
+              {documentGroups.map((group) => (
+                <div key={group.key}>
+                  <div className="mb-2 flex items-center justify-between">
+                    <h3 className="font-medium text-stone-700">{group.label}</h3>
+                    {group.onJump && (
+                      <button
+                        type="button"
+                        onClick={group.onJump}
+                        className="shrink-0 text-xs text-teal-600 hover:text-teal-700"
+                      >
+                        View →
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-3">
+                    <DocumentGroup
+                      type="confirmation"
+                      documents={group.items.filter((d) => d.type === 'confirmation')}
+                    />
+                    <DocumentGroup type="photo" documents={group.items.filter((d) => d.type === 'photo')} />
+                    <DocumentGroup type="receipt" documents={group.items.filter((d) => d.type === 'receipt')} />
+                    <DocumentGroup type="guide" documents={group.items.filter((d) => d.type === 'guide')} />
+                  </div>
+                </div>
+              ))}
             </div>
           </>
         )}
@@ -437,22 +462,41 @@ export default function TripDetail() {
         {tab === 'links' && (
           <>
             {links.length === 0 && <EmptyState text="No links yet." />}
-            {links.map((link) => (
-              
-              <a 
-                key={link.id}
-                href={link.url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100 hover:shadow-md"
-              >
-                <span className="text-xl">🔗</span>
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-stone-800">{link.label}</p>
-                  <p className="truncate text-sm text-stone-500">{link.url}</p>
+            <div className="space-y-6">
+              {linkGroups.map((group) => (
+                <div key={group.key}>
+                  <div className="mb-2 flex items-center justify-between">
+                    <h3 className="font-medium text-stone-700">{group.label}</h3>
+                    {group.onJump && (
+                      <button
+                        type="button"
+                        onClick={group.onJump}
+                        className="shrink-0 text-xs text-teal-600 hover:text-teal-700"
+                      >
+                        View →
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {group.items.map((link) => (
+                      <a
+                        key={link.id}
+                        href={link.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100 hover:shadow-md"
+                      >
+                        <span className="text-xl">🔗</span>
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-stone-800">{link.label}</p>
+                          <p className="truncate text-sm text-stone-500">{link.url}</p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
                 </div>
-              </a>
-            ))}
+              ))}
+            </div>
           </>
         )}
 

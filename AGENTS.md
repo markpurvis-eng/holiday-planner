@@ -128,6 +128,19 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   (e.g. `pdf-lib`, or a lighter jsPDF entry point) if install size becomes a
   problem.
 
+- **Documents/Links grouped by attachment point**: `src/lib/attachmentGroups.ts`
+  exports `buildAttachmentGroups()`, a small generic helper (works on
+  `Document[]` or `Link[]`, since both share `booking_id`/`itinerary_item_id`)
+  that splits a trip's documents/links into "Trip-level", one group per
+  booking that has attachments, and one group per itinerary item that has
+  attachments — rather than the flat, type-only list the Documents/Links
+  tabs showed before. Each non-trip-level group carries an `onJump` callback
+  that switches tabs and highlights the underlying booking/itinerary card
+  (reuses the same `handleJumpTo()` the Itinerary tab's booking markers use).
+  Documents still get their existing type-subgrouping (`DocumentGroup`)
+  within each attachment group; Links don't have a type, so each group is
+  just its own flat card list.
+
 ## Ready to build / open items
 
 - The installable icon is SVG-only (see above) — a real PNG icon set is a good
