@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf'
 import type { Booking, ItineraryItem, Trip } from './types'
-import { formatDate, formatDayAbbrev, formatTime } from './format'
+import { formatDate, formatDayAbbrev, formatTime, parseLocalDate } from './format'
 import { uploadItineraryPdf, updateTrip } from './api'
 
 type DayGroup = {
@@ -60,6 +60,17 @@ export function buildDayGroups(bookings: Booking[], itinerary: ItineraryItem[]):
 const PAGE_MARGIN = 15
 const LINE_HEIGHT = 6
 
+// Fixed dd/mm/yyyy format for the PDF header, deliberately not using the
+// locale-dependent formatDate() here — that follows the browser/OS locale,
+// which could vary between devices, whereas this needs to always render
+// the same way regardless of who opens it.
+function formatDateDDMMYYYY(dateStr: string): string {
+  const d = parseLocalDate(dateStr)
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  return `${day}/${month}/${d.getFullYear()}`
+}
+
 // jsPDF's built-in fonts (Helvetica etc.) only support WinAnsi/Latin-1
 // characters. Anything outside that - most commonly arrows typed into
 // transfer/flight-routing text ("Heathrow -> Gatwick") or curly
@@ -115,7 +126,7 @@ export function generateItineraryPdf(trip: Trip, bookings: Booking[], itinerary:
   }
 
   writeLine(trip.name, { size: 18, style: 'bold' })
-  writeLine(`${formatDate(trip.start_date)} - ${formatDate(trip.end_date)}`, { size: 11 })
+  writeLine(`${formatDateDDMMYYYY(trip.start_date)} - ${formatDateDDMMYYYY(trip.end_date)}`, { size: 11 })
   y += 4
 
   const dayGroups = buildDayGroups(bookings, itinerary)
