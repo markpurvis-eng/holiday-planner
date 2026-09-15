@@ -21,6 +21,7 @@ import { WeatherForecast } from '../components/WeatherForecast'
 import { resolveTodaysLocation } from '../lib/weather'
 import { getHideCancelledItems } from '../lib/settings'
 import { PaymentBadge } from '../components/PaymentBadge'
+import { mergeItineraryTimeline } from '../lib/itineraryTimeline'
 
 type Tab = 'bookings' | 'itinerary' | 'documents' | 'links' | 'todos'
 
@@ -151,6 +152,28 @@ export default function TripDetail() {
   const visibleItinerary = itinerary
     .filter((item) => !hideCancelled || !item.cancelled)
     .filter((item) => paymentFilters.size === 0 || (item.cost != null && paymentFilters.has(item.payment_status)))
+
+  // Booking start/end markers on the Itinerary tab respect hideCancelled
+  // (consistent with cancelled itinerary items also being hidden there),
+  // but deliberately not paymentFilters — a "trip begins" marker isn't a
+  // cost line the way itinerary items with a cost are, so filtering by
+  // payment status doesn't have a sensible meaning for it.
+  const bookingsForTimeline = bookings.filter((b) => !hideCancelled || !b.cancelled)
+  const timeline = mergeItineraryTimeline(bookingsForTimeline, visibleItinerary)
+
+  // Jumps from a booking marker on the Itinerary tab to that booking's own
+  // card on the Bookings tab. `tab` is local state (only read from the URL
+  // once, on mount), so it needs setting directly here — updating
+  // searchParams alone wouldn't switch the visible tab.
+  function handleJumpToBooking(bookingId: string) {
+    setTab('bookings')
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set('tab', 'bookings')
+      next.set('highlight', bookingId)
+      return next
+    })
+  }
 
   // Once the trip has started (and hasn't ended), prefer today's actual
   // location — from today's itinerary item if there is one (e.g. a cruise's
@@ -292,7 +315,9 @@ export default function TripDetail() {
                 {(b.start_date || b.end_date) && (
                   <p className="text-sm text-stone-500">
                     {b.start_date ? formatDate(b.start_date) : ''}
+                    {b.start_time ? ` ${formatTime(b.start_time)}` : ''}
                     {b.end_date ? ` – ${formatDate(b.end_date)}` : ''}
+                    {b.end_date && b.end_time ? ` ${formatTime(b.end_time)}` : ''}
                   </p>
                 )}
                 {b.cost != null && (
@@ -314,53 +339,86 @@ export default function TripDetail() {
 
         {tab === 'itinerary' && (
           <>
-            {itinerary.length === 0 && <EmptyState text="No itinerary items yet." />}
-            {itinerary.length > 0 && visibleItinerary.length === 0 && (
+            {timeline.length === 0 && itinerary.length === 0 && bookings.length === 0 && (
+              <EmptyState text="No itinerary items yet." />
+            )}
+            {timeline.length === 0 && (itinerary.length > 0 || bookings.length > 0) && (
               <EmptyState text="No itinerary items match the current filters." />
             )}
-            {visibleItinerary.map((item) => (
-              <div
-                key={item.id}
-                id={`item-${item.id}`}
-                className={`flex gap-3 rounded-2xl bg-white p-4 shadow-sm transition-shadow ${
-                  item.id === highlightId ? 'ring-2 ring-teal-400' : 'ring-1 ring-stone-100'
-                }`}
-              >
-                <div className="w-16 shrink-0 text-sm text-stone-500">
-                  <div>{formatDayAbbrev(item.date)}</div>
-                  <div>{formatDate(item.date, { day: 'numeric', month: 'short' })}</div>
-                  {item.time && <div>{formatTime(item.time)}</div>}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs font-medium uppercase tracking-wide text-teal-600">
-                      {item.type}
-                    </p>
-                    {item.cancelled && (
-                      <span className="rounded-full bg-stone-200 px-2 py-0.5 text-xs font-medium text-stone-600">
-                        Cancelled
-                      </span>
-                    )}
-                  </div>
-                  <p className={`font-medium text-stone-800 ${item.cancelled ? 'line-through' : ''}`}>
-                    {item.venue}
-                  </p>
-                  {item.reference && (
-                    <p className="text-sm text-stone-500">Ref: {item.reference}</p>
-                  )}
-                  {item.cost != null && (
-                    <div className="mt-0.5 flex items-center gap-2">
-                      <p className="text-sm text-stone-500">{formatMoney(item.cost, item.currency)}</p>
-                      <PaymentBadge status={item.payment_status} />
+            {timeline.map((entry) => {
+              if (entry.kind === 'bookingStart' || entry.kind === 'bookingEnd') {
+                const booking = entry.booking
+                return (
+                  <button
+                    key={`${entry.kind}-${booking.id}`}
+                    type="button"
+                    onClick={() => handleJumpToBooking(booking.id)}
+                    className="flex w-full items-center gap-3 rounded-2xl bg-stone-50 p-4 text-left shadow-sm ring-1 ring-stone-200 transition-shadow hover:ring-teal-300"
+                  >
+                    <div className="w-16 shrink-0 text-sm text-stone-500">
+                      <div>{formatDayAbbrev(entry.date)}</div>
+                      <div>{formatDate(entry.date, { day: 'numeric', month: 'short' })}</div>
+                      {entry.time && <div>{formatTime(entry.time)}</div>}
                     </div>
-                  )}
-                  <AttachedItems
-                    documents={documents.filter((d) => d.itinerary_item_id === item.id)}
-                    links={links.filter((l) => l.itinerary_item_id === item.id)}
-                  />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
+                        Booking {entry.kind === 'bookingStart' ? 'begins' : 'ends'}
+                      </p>
+                      <p className="font-medium text-stone-700">{booking.provider_name}</p>
+                      {booking.destination_name && (
+                        <p className="text-sm text-stone-500">{booking.destination_name}</p>
+                      )}
+                    </div>
+                    <span className="shrink-0 text-xs text-teal-600">View →</span>
+                  </button>
+                )
+              }
+
+              const item = entry.item
+              return (
+                <div
+                  key={item.id}
+                  id={`item-${item.id}`}
+                  className={`flex gap-3 rounded-2xl bg-white p-4 shadow-sm transition-shadow ${
+                    item.id === highlightId ? 'ring-2 ring-teal-400' : 'ring-1 ring-stone-100'
+                  }`}
+                >
+                  <div className="w-16 shrink-0 text-sm text-stone-500">
+                    <div>{formatDayAbbrev(item.date)}</div>
+                    <div>{formatDate(item.date, { day: 'numeric', month: 'short' })}</div>
+                    {item.time && <div>{formatTime(item.time)}</div>}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-teal-600">
+                        {item.type}
+                      </p>
+                      {item.cancelled && (
+                        <span className="rounded-full bg-stone-200 px-2 py-0.5 text-xs font-medium text-stone-600">
+                          Cancelled
+                        </span>
+                      )}
+                    </div>
+                    <p className={`font-medium text-stone-800 ${item.cancelled ? 'line-through' : ''}`}>
+                      {item.venue}
+                    </p>
+                    {item.reference && (
+                      <p className="text-sm text-stone-500">Ref: {item.reference}</p>
+                    )}
+                    {item.cost != null && (
+                      <div className="mt-0.5 flex items-center gap-2">
+                        <p className="text-sm text-stone-500">{formatMoney(item.cost, item.currency)}</p>
+                        <PaymentBadge status={item.payment_status} />
+                      </div>
+                    )}
+                    <AttachedItems
+                      documents={documents.filter((d) => d.itinerary_item_id === item.id)}
+                      links={links.filter((l) => l.itinerary_item_id === item.id)}
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </>
         )}
 

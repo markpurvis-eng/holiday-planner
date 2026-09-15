@@ -32,6 +32,8 @@ export type Booking = {
   confirmation_ref: string | null
   start_date: string | null
   end_date: string | null
+  start_time: string | null
+  end_time: string | null
   cost: number | null
   currency: string | null
   payment_status: PaymentStatus

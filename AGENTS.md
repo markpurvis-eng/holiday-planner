@@ -80,6 +80,33 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   accept PDFs and Word docs, since those are just as likely to arrive as a PDF or
   `.docx` as a screenshot.
 
+- **Bookings on the Itinerary tab, with time-of-day precision**:
+  `src/lib/itineraryTimeline.ts` exports `mergeItineraryTimeline()`, the one
+  canonical place that turns a booking's start/end dates into synthesized
+  "begins"/"ends" timeline entries, interleaved chronologically with real
+  `itinerary_item` rows. `Booking` stays the single source of truth for its
+  own dates — nothing gets written into `itinerary_item`. Used by both
+  `TripDetail.tsx`'s Itinerary tab (renders booking markers as small
+  tap-to-jump cards that switch to the Bookings tab and highlight the
+  underlying booking) and `shareItinerary.ts`'s `buildDayGroups()` (re-groups
+  the same merged timeline by day and formats it to PDF text lines) — one
+  merge, two presentations. Booking markers respect the "hide cancelled"
+  setting but not the payment-status filter (a "trip begins" marker isn't a
+  cost line the way itinerary items with a cost are).
+  **`booking.start_time`/`end_time`** (nullable `time` columns, added
+  alongside the existing `start_date`/`end_date`) hold the time-of-day when
+  known. The sort in `mergeItineraryTimeline()` is a hybrid: an entry with a
+  known time sorts chronologically alongside every other timed entry that
+  day, regardless of kind (a booking end at 11:00 correctly sorts before a
+  same-day booking start at 14:00). An entry with no known time falls back
+  to a placeholder position — booking-start before the day's timed entries,
+  booking-end after — since most existing bookings don't have a time
+  backfilled yet. No further schema or sort-logic change needed as times get
+  filled in; ordering just keeps improving. There's currently no in-app UI
+  for editing a booking's start/end time — backfilling happens via direct
+  SQL through the Supabase connector (same as the `destination_lat`/`lng`
+  backfill).
+
 - **Share itinerary (public PDF)**: `src/lib/shareItinerary.ts` builds a
   date-only day-grouped merge of a trip's non-cancelled bookings and
   itinerary items (booking start/end dates become "begins"/"ends" markers on

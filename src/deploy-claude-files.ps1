@@ -45,6 +45,7 @@ $SrcFileMap = @{
     'settings.ts'         = 'lib\settings.ts'
     'version.ts'          = 'lib\version.ts'
     'shareItinerary.ts'   = 'lib\shareItinerary.ts'
+    'itineraryTimeline.ts' = 'lib\itineraryTimeline.ts'
     'TripDetail.tsx'      = 'pages\TripDetail.tsx'
     'AddLink.tsx'         = 'pages\AddLink.tsx'
     'Upload.tsx'          = 'pages\Upload.tsx'

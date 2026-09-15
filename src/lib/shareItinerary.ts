@@ -2,59 +2,57 @@ import { jsPDF } from 'jspdf'
 import type { Booking, ItineraryItem, Trip } from './types'
 import { formatDate, formatDayAbbrev, formatTime, parseLocalDate } from './format'
 import { uploadItineraryPdf, updateTrip } from './api'
+import { mergeItineraryTimeline } from './itineraryTimeline'
 
 type DayGroup = {
   date: string
-  bookingLines: string[]
-  itineraryLines: { time: string | null; type: string; venue: string }[]
+  lines: string[]
 }
 
 // Groups non-cancelled bookings and itinerary items by calendar day, for a
-// simple date-only shared itinerary. This is deliberately the date-only
-// slice of the fuller merge-at-render idea for the live in-app Itinerary
-// tab (Missing Features #5) — that one needs real time-of-day on bookings,
-// which don't exist yet, but the share PDF only needs day grouping, so it
-// doesn't have to wait on that schema change.
+// shared itinerary. Built on the same mergeItineraryTimeline used by the
+// live in-app Itinerary tab — one canonical place decides how a booking's
+// start/end dates become timeline entries and how they sort against real
+// itinerary items (by actual time where known, a sensible placeholder
+// position otherwise). Grouping the already-sorted timeline by day (rather
+// than sorting again here) means a booking with a real time and an
+// itinerary item on the same day come out in true chronological order,
+// not "all bookings, then all itinerary items."
 export function buildDayGroups(bookings: Booking[], itinerary: ItineraryItem[]): DayGroup[] {
+  const timeline = mergeItineraryTimeline(
+    bookings.filter((b) => !b.cancelled),
+    itinerary.filter((item) => !item.cancelled)
+  )
+
   const groups = new Map<string, DayGroup>()
 
   function group(date: string): DayGroup {
     let g = groups.get(date)
     if (!g) {
-      g = { date, bookingLines: [], itineraryLines: [] }
+      g = { date, lines: [] }
       groups.set(date, g)
     }
     return g
   }
 
-  for (const b of bookings) {
-    if (b.cancelled) continue
-    const destination = b.destination_name ? ` - ${b.destination_name}` : ''
-    if (b.start_date) {
-      group(b.start_date).bookingLines.push(`${b.provider_name} begins${destination}`)
-      if (b.end_date && b.end_date !== b.start_date) {
-        group(b.end_date).bookingLines.push(`${b.provider_name} ends`)
-      }
-    } else if (b.end_date) {
-      group(b.end_date).bookingLines.push(`${b.provider_name} ends${destination}`)
+  for (const entry of timeline) {
+    const timePrefix = entry.time ? `${formatTime(entry.time)} - ` : ''
+    if (entry.kind === 'itineraryItem') {
+      group(entry.date).lines.push(`${timePrefix}${entry.item.type}: ${entry.item.venue ?? ''}`)
+      continue
+    }
+    const destination = entry.booking.destination_name ? ` - ${entry.booking.destination_name}` : ''
+    if (entry.kind === 'bookingStart') {
+      group(entry.date).lines.push(`${timePrefix}${entry.booking.provider_name} begins${destination}`)
+    } else {
+      // Only show the destination on the end marker when there was no
+      // start marker to show it on (a booking with only an end_date).
+      const suffix = entry.booking.start_date ? '' : destination
+      group(entry.date).lines.push(`${timePrefix}${entry.booking.provider_name} ends${suffix}`)
     }
   }
 
-  for (const item of itinerary) {
-    if (item.cancelled) continue
-    group(item.date).itineraryLines.push({
-      time: item.time,
-      type: item.type,
-      venue: item.venue ?? '',
-    })
-  }
-
-  return Array.from(groups.values())
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .map((g) => ({
-      ...g,
-      itineraryLines: [...g.itineraryLines].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? '')),
-    }))
+  return Array.from(groups.values()).sort((a, b) => a.date.localeCompare(b.date))
 }
 
 const PAGE_MARGIN = 15
@@ -141,12 +139,8 @@ export function generateItineraryPdf(trip: Trip, bookings: Booking[], itinerary:
       size: 13,
       style: 'bold',
     })
-    for (const line of day.bookingLines) {
+    for (const line of day.lines) {
       writeLine(line, { size: 10.5, indent: 4 })
-    }
-    for (const item of day.itineraryLines) {
-      const timePrefix = item.time ? `${formatTime(item.time)} - ` : ''
-      writeLine(`${timePrefix}${item.type}: ${item.venue}`, { size: 10.5, indent: 4 })
     }
   }
 

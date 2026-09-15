@@ -40,6 +40,12 @@ create table if not exists trip (
 -- generated yet for this trip, so the Share button stays hidden.
 alter table trip add column if not exists public_itinerary_generated_at timestamptz;
 
+-- Time-of-day precision for bookings: nullable and additive, so existing
+-- bookings keep working with date-only ordering until real times are
+-- backfilled (see AGENTS.md, "Bookings on the Itinerary tab").
+alter table booking add column if not exists start_time time;
+alter table booking add column if not exists end_time time;
+
 -- --- booking -------------------------------------------------------------
 
 create table if not exists booking (
