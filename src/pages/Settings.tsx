@@ -56,19 +56,24 @@ export default function Settings() {
   async function handleShareItinerary() {
     if (!selectedTrip) return
     const url = getItineraryPdfUrl(selectedTrip.id)
+    const message = `Here is Mark and Andi's itinerary for their ${selectedTrip.name} trip.\n\n${url}\n\nSent from Mark's Holiday Planner app (powered by Claude)`
     if (navigator.share) {
       try {
-        await navigator.share({ title: `${selectedTrip.name} itinerary`, url })
+        // Deliberately putting the link inside `text` rather than also
+        // passing a separate `url` field — some share targets (e.g. mail
+        // apps) append `url` again on its own line even when it's already
+        // part of `text`, which would show the link twice.
+        await navigator.share({ title: `${selectedTrip.name} itinerary`, text: message })
       } catch {
         // AbortError (user cancelled the share sheet) — nothing to do.
       }
       return
     }
     try {
-      await navigator.clipboard.writeText(url)
-      setShareNotice('Link copied to clipboard.')
+      await navigator.clipboard.writeText(message)
+      setShareNotice('Message copied to clipboard.')
     } catch {
-      setShareNotice(url)
+      setShareNotice(message)
     }
   }
 
