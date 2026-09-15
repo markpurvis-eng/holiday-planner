@@ -66,6 +66,13 @@ $RootFileMap = @{
     'README.md'         = 'README.md'
     'netlify.toml'      = 'netlify.toml'
     'schema.sql'        = 'supabase\schema.sql'
+    'index.html'        = 'index.html'
+    'vite.config.ts'    = 'vite.config.ts'
+    'icon.svg'                = 'public\icon.svg'
+    'icon-192.png'            = 'public\icon-192.png'
+    'icon-512.png'            = 'public\icon-512.png'
+    'icon-maskable-192.png'   = 'public\icon-maskable-192.png'
+    'icon-maskable-512.png'   = 'public\icon-maskable-512.png'
 }
 
 $SrcRoot = Join-Path $RepoRoot 'src'
