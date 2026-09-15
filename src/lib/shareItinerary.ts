@@ -1,0 +1,142 @@
+import { jsPDF } from 'jspdf'
+import type { Booking, ItineraryItem, Trip } from './types'
+import { formatDate, formatDayAbbrev, formatTime } from './format'
+import { uploadItineraryPdf, updateTrip } from './api'
+
+type DayGroup = {
+  date: string
+  bookingLines: string[]
+  itineraryLines: { time: string | null; type: string; venue: string }[]
+}
+
+// Groups non-cancelled bookings and itinerary items by calendar day, for a
+// simple date-only shared itinerary. This is deliberately the date-only
+// slice of the fuller merge-at-render idea for the live in-app Itinerary
+// tab (Missing Features #5) — that one needs real time-of-day on bookings,
+// which don't exist yet, but the share PDF only needs day grouping, so it
+// doesn't have to wait on that schema change.
+export function buildDayGroups(bookings: Booking[], itinerary: ItineraryItem[]): DayGroup[] {
+  const groups = new Map<string, DayGroup>()
+
+  function group(date: string): DayGroup {
+    let g = groups.get(date)
+    if (!g) {
+      g = { date, bookingLines: [], itineraryLines: [] }
+      groups.set(date, g)
+    }
+    return g
+  }
+
+  for (const b of bookings) {
+    if (b.cancelled) continue
+    const destination = b.destination_name ? ` - ${b.destination_name}` : ''
+    if (b.start_date) {
+      group(b.start_date).bookingLines.push(`${b.provider_name} begins${destination}`)
+      if (b.end_date && b.end_date !== b.start_date) {
+        group(b.end_date).bookingLines.push(`${b.provider_name} ends`)
+      }
+    } else if (b.end_date) {
+      group(b.end_date).bookingLines.push(`${b.provider_name} ends${destination}`)
+    }
+  }
+
+  for (const item of itinerary) {
+    if (item.cancelled) continue
+    group(item.date).itineraryLines.push({
+      time: item.time,
+      type: item.type,
+      venue: item.venue ?? '',
+    })
+  }
+
+  return Array.from(groups.values())
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((g) => ({
+      ...g,
+      itineraryLines: [...g.itineraryLines].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? '')),
+    }))
+}
+
+const PAGE_MARGIN = 15
+const LINE_HEIGHT = 6
+
+// Builds the shared itinerary as a PDF Blob. Deliberately excludes cost,
+// currency, payment_status, reference/confirmation numbers, and
+// booking.check_in_details (free text, could contain anything sensitive) —
+// only date/time/type/venue for itinerary items and provider name/dates/
+// destination for bookings are included. Cancelled itinerary items (and,
+// for consistency, cancelled bookings) are omitted entirely rather than
+// shown struck through.
+export function generateItineraryPdf(trip: Trip, bookings: Booking[], itinerary: ItineraryItem[]): Blob {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  let y = PAGE_MARGIN
+
+  function ensureSpace(extra: number) {
+    if (y + extra > pageHeight - PAGE_MARGIN) {
+      doc.addPage()
+      y = PAGE_MARGIN
+    }
+  }
+
+  function writeLine(
+    text: string,
+    opts: { size?: number; style?: 'normal' | 'bold'; indent?: number } = {}
+  ) {
+    const { size = 11, style = 'normal', indent = 0 } = opts
+    doc.setFont('helvetica', style)
+    doc.setFontSize(size)
+    const maxWidth = pageWidth - PAGE_MARGIN * 2 - indent
+    const wrapped = doc.splitTextToSize(text, maxWidth) as string[]
+    for (const wline of wrapped) {
+      ensureSpace(LINE_HEIGHT)
+      doc.text(wline, PAGE_MARGIN + indent, y)
+      y += LINE_HEIGHT
+    }
+  }
+
+  writeLine(trip.name, { size: 18, style: 'bold' })
+  writeLine(`${formatDate(trip.start_date)} - ${formatDate(trip.end_date)}`, { size: 11 })
+  y += 4
+
+  const dayGroups = buildDayGroups(bookings, itinerary)
+
+  if (dayGroups.length === 0) {
+    writeLine('No itinerary items yet.', { size: 11 })
+  }
+
+  for (const day of dayGroups) {
+    y += 2
+    writeLine(`${formatDayAbbrev(day.date)} ${formatDate(day.date, { day: 'numeric', month: 'long' })}`, {
+      size: 13,
+      style: 'bold',
+    })
+    for (const line of day.bookingLines) {
+      writeLine(line, { size: 10.5, indent: 4 })
+    }
+    for (const item of day.itineraryLines) {
+      const timePrefix = item.time ? `${formatTime(item.time)} - ` : ''
+      writeLine(`${timePrefix}${item.type}: ${item.venue}`, { size: 10.5, indent: 4 })
+    }
+  }
+
+  return doc.output('blob')
+}
+
+// Builds the PDF, uploads/overwrites it at the trip's stable public path,
+// and stamps public_itinerary_generated_at so the Share button knows the
+// link is live. Returns the public URL — stable across regenerations, so
+// any previously-shared link keeps working.
+export async function generateAndPublishItinerary(
+  trip: Trip,
+  bookings: Booking[],
+  itinerary: ItineraryItem[]
+): Promise<{ url: string; generatedAt: string }> {
+  const blob = generateItineraryPdf(trip, bookings, itinerary)
+  const url = await uploadItineraryPdf(trip.id, blob)
+  const updated = await updateTrip(trip.id, {
+    public_itinerary_generated_at: new Date().toISOString(),
+  })
+  return { url, generatedAt: updated.public_itinerary_generated_at! }
+}

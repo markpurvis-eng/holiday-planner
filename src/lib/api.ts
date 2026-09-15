@@ -67,6 +67,30 @@ export async function updateTrip(id: string, updates: Partial<Trip>): Promise<Tr
   return data
 }
 
+// --- Public itinerary sharing ---
+
+// Uploads/overwrites the shared itinerary PDF at a stable per-trip path, so
+// regenerating never changes the public URL a previously-shared link points
+// at. upsert:true is required here (unlike uploadDocumentFile's random path)
+// because this path is deliberately reused on every regeneration.
+export async function uploadItineraryPdf(tripId: string, pdfBlob: Blob): Promise<string> {
+  const path = `${tripId}.pdf`
+  const { error } = await supabase.storage
+    .from('itineraries')
+    .upload(path, pdfBlob, { upsert: true, contentType: 'application/pdf' })
+  if (error) throw error
+  const { data } = supabase.storage.from('itineraries').getPublicUrl(path)
+  return data.publicUrl
+}
+
+// Stable public URL for a trip's shared itinerary PDF. getPublicUrl doesn't
+// make a network request, so this is safe to call any time the trip's
+// public_itinerary_generated_at is set (i.e. the file is known to exist).
+export function getItineraryPdfUrl(tripId: string): string {
+  const { data } = supabase.storage.from('itineraries').getPublicUrl(`${tripId}.pdf`)
+  return data.publicUrl
+}
+
 // --- Bookings ---
 
 export async function getBookings(tripId: string): Promise<Booking[]> {

@@ -36,6 +36,10 @@ create table if not exists trip (
   created_at timestamptz not null default now()
 );
 
+-- Added for the share-itinerary feature: null means no public PDF has been
+-- generated yet for this trip, so the Share button stays hidden.
+alter table trip add column if not exists public_itinerary_generated_at timestamptz;
+
 -- --- booking -------------------------------------------------------------
 
 create table if not exists booking (
@@ -197,3 +201,26 @@ create policy "documents bucket public read"
   on storage.objects for select
   to anon
   using (bucket_id = 'documents');
+
+-- --- Storage bucket for shared/public itinerary PDFs -----------------------
+-- Separate from the documents bucket because these objects are always
+-- public by design (that's the point of the feature) at a stable per-trip
+-- path (<trip-id>.pdf), rather than the random per-upload paths used for
+-- documents.
+
+insert into storage.buckets (id, name, public)
+values ('itineraries', 'itineraries', true)
+on conflict (id) do nothing;
+
+drop policy if exists "itineraries bucket read/write for authenticated" on storage.objects;
+create policy "itineraries bucket read/write for authenticated"
+  on storage.objects for all
+  to authenticated
+  using (bucket_id = 'itineraries')
+  with check (bucket_id = 'itineraries');
+
+drop policy if exists "itineraries bucket public read" on storage.objects;
+create policy "itineraries bucket public read"
+  on storage.objects for select
+  to anon
+  using (bucket_id = 'itineraries');

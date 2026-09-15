@@ -20,6 +20,7 @@ export type Trip = {
   destination_name: string | null
   destination_lat: number | null
   destination_lng: number | null
+  public_itinerary_generated_at: string | null
 }
 
 export type PaymentStatus = 'unpaid' | 'partially_paid' | 'paid'

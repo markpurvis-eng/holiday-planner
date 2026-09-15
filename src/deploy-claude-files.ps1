@@ -1,8 +1,10 @@
 <#
 .SYNOPSIS
   Moves (or copies) Claude-generated Holiday Planner files from a flat
-  folder — e.g. Downloads — into their correct locations under src/.
+  folder — e.g. Downloads — into their correct locations in the repo.
   Handles both individually-downloaded files AND a "Download all" zip.
+  Covers files under src/ AND repo-root-level files (package.json,
+  supabase/schema.sql, AGENTS.md, etc).
 
 .USAGE
   From PowerShell, in any folder:
@@ -14,45 +16,61 @@
   Optional parameters:
     -SourceFolder <path>   Where the downloaded file(s) are.
                            Default: your Downloads folder.
-    -SrcRoot <path>        The src/ folder to copy into.
-                           Default: C:\Users\markp\src\holiday-planner\src
+    -RepoRoot <path>       The repo root to copy into (both the root-level
+                           map and the src/ map are resolved from this).
+                           Default: C:\Users\markp\src\holiday-planner
     -KeepSource            Copy instead of move (leaves originals in place,
                            including any zip -- it won't be deleted).
 
 .NOTES
-  The map below needs a new entry whenever Claude hands you a file it
-  hasn't handed you before. Claude will reissue this script with the map
+  The maps below need a new entry whenever Claude hands you a file it
+  hasn't handed you before. Claude will reissue this script with the map(s)
   updated whenever that happens — if a file isn't matching, you're
   probably running an older copy of this script.
 #>
 
 param(
     [string]$SourceFolder = "$env:USERPROFILE\Downloads",
-    [string]$SrcRoot = "C:\Users\markp\src\holiday-planner\src",
+    [string]$RepoRoot = "C:\Users\markp\src\holiday-planner",
     [switch]$KeepSource
 )
 
 # Filename -> path relative to src\
-$FileMap = @{
-    'App.tsx'           = 'App.tsx'
-    'format.ts'         = 'lib\format.ts'
-    'types.ts'          = 'lib\types.ts'
-    'weather.ts'        = 'lib\weather.ts'
-    'settings.ts'       = 'lib\settings.ts'
-    'version.ts'        = 'lib\version.ts'
-    'TripDetail.tsx'    = 'pages\TripDetail.tsx'
-    'AddLink.tsx'       = 'pages\AddLink.tsx'
-    'Upload.tsx'        = 'pages\Upload.tsx'
-    'Dashboard.tsx'     = 'pages\Dashboard.tsx'
-    'Settings.tsx'      = 'pages\Settings.tsx'
-    'TripCard.tsx'      = 'components\TripCard.tsx'
+$SrcFileMap = @{
+    'App.tsx'             = 'App.tsx'
+    'format.ts'           = 'lib\format.ts'
+    'types.ts'            = 'lib\types.ts'
+    'api.ts'               = 'lib\api.ts'
+    'weather.ts'          = 'lib\weather.ts'
+    'settings.ts'         = 'lib\settings.ts'
+    'version.ts'          = 'lib\version.ts'
+    'shareItinerary.ts'   = 'lib\shareItinerary.ts'
+    'TripDetail.tsx'      = 'pages\TripDetail.tsx'
+    'AddLink.tsx'         = 'pages\AddLink.tsx'
+    'Upload.tsx'          = 'pages\Upload.tsx'
+    'Dashboard.tsx'       = 'pages\Dashboard.tsx'
+    'Settings.tsx'        = 'pages\Settings.tsx'
+    'TripCard.tsx'        = 'components\TripCard.tsx'
     'WeatherForecast.tsx' = 'components\WeatherForecast.tsx'
-    'BottomNav.tsx'     = 'components\BottomNav.tsx'
-    'PaymentBadge.tsx'  = 'components\PaymentBadge.tsx'
+    'BottomNav.tsx'       = 'components\BottomNav.tsx'
+    'PaymentBadge.tsx'    = 'components\PaymentBadge.tsx'
+    'deploy-claude-files.ps1' = 'deploy-claude-files.ps1'
 }
 
-if (-not (Test-Path $SrcRoot)) {
-    Write-Error "src folder not found at '$SrcRoot'. Pass -SrcRoot to override."
+# Filename -> path relative to the repo root (i.e. NOT under src\)
+$RootFileMap = @{
+    'package.json'      = 'package.json'
+    'package-lock.json' = 'package-lock.json'
+    'AGENTS.md'         = 'AGENTS.md'
+    'README.md'         = 'README.md'
+    'netlify.toml'      = 'netlify.toml'
+    'schema.sql'        = 'supabase\schema.sql'
+}
+
+$SrcRoot = Join-Path $RepoRoot 'src'
+
+if (-not (Test-Path $RepoRoot)) {
+    Write-Error "Repo folder not found at '$RepoRoot'. Pass -RepoRoot to override."
     exit 1
 }
 
@@ -91,21 +109,30 @@ Get-ChildItem -Path $SourceFolder -File -Filter '*.zip' | ForEach-Object {
 foreach ($file in $candidates) {
     # Strip a Windows/Chrome duplicate-download suffix like " (1)" before
     # the extension, so a re-download ("TripDetail (1).tsx") still matches
-    # the map entry for "TripDetail.tsx".
+    # a map entry for "TripDetail.tsx".
     $normalizedName = $file.Name -replace '\s\(\d+\)(\.\w+)$', '$1'
 
-    $relativePath = $FileMap[$normalizedName]
-    if (-not $relativePath) {
+    # Root-level files (package.json, schema.sql, AGENTS.md, ...) are
+    # checked first, since a couple of names (README.md) could plausibly
+    # collide with a src\ file in the future -- root wins if both matched.
+    if ($RootFileMap[$normalizedName]) {
+        $relativePath = $RootFileMap[$normalizedName]
+        $base = $RepoRoot
+    } elseif ($SrcFileMap[$normalizedName]) {
+        $relativePath = $SrcFileMap[$normalizedName]
+        $base = $SrcRoot
+    } else {
         continue  # not one of ours -- leave it alone
     }
 
-    $destination = Join-Path $SrcRoot $relativePath
+    $destination = Join-Path $base $relativePath
     $destinationDir = Split-Path $destination -Parent
     if (-not (Test-Path $destinationDir)) {
         New-Item -ItemType Directory -Path $destinationDir -Force | Out-Null
     }
 
-    Write-Host "$verb $($file.Name) -> $relativePath"
+    $displayPath = $destination.Substring($RepoRoot.Length).TrimStart('\')
+    Write-Host "$verb $($file.Name) -> $displayPath"
     Copy-Item -Path $file.FullName -Destination $destination -Force
     $matched++
 }
@@ -118,7 +145,7 @@ if (Test-Path $tempExtract) {
 if (-not $KeepSource) {
     foreach ($file in $looseFilesToClean) {
         $normalizedName = $file.Name -replace '\s\(\d+\)(\.\w+)$', '$1'
-        if ($FileMap[$normalizedName]) {
+        if ($RootFileMap[$normalizedName] -or $SrcFileMap[$normalizedName]) {
             Remove-Item -Path $file.FullName -Force
         }
     }
@@ -128,7 +155,7 @@ if (-not $KeepSource) {
 }
 
 Write-Host ""
-Write-Host "Done. $matched file(s) placed under $SrcRoot."
+Write-Host "Done. $matched file(s) placed under $RepoRoot."
 if ($matched -eq 0) {
-    Write-Host "No matching files found in $SourceFolder -- check the file map, or that Download all was used correctly."
+    Write-Host "No matching files found in $SourceFolder -- check the file maps, or that Download all was used correctly."
 }
