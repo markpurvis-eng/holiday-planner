@@ -80,6 +80,27 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   accept PDFs and Word docs, since those are just as likely to arrive as a PDF or
   `.docx` as a screenshot.
 
+- **Share itinerary (public PDF)**: `src/lib/shareItinerary.ts` builds a
+  date-only day-grouped merge of a trip's non-cancelled bookings and
+  itinerary items (booking start/end dates become "begins"/"ends" markers on
+  their respective days; cancelled bookings and itinerary items are omitted
+  entirely, not struck through) and renders it client-side to a PDF with
+  `jspdf`. The PDF is uploaded to the public `itineraries` Storage bucket at
+  a **stable per-trip path** (`<trip-id>.pdf`), so regenerating overwrites in
+  place and any previously-shared link keeps working — `upsert: true` on the
+  storage upload is required for this, unlike the random-path pattern used
+  for `documents`. `trip.public_itinerary_generated_at` (null until first
+  generated) gates whether the Share button appears in `TripDetail.tsx`.
+  Deliberately excluded from the PDF: cost, currency, payment_status,
+  reference/confirmation numbers, and `booking.check_in_details` (free text —
+  could contain anything). The Share button uses the Web Share API where
+  available, falling back to copying the link to the clipboard.
+  **Bundle-size note**: `jspdf`'s default ES bundle unconditionally pulls in
+  `html2canvas` + DOMPurify (~250KB gzipped) for its `.html()` plugin, which
+  this feature never calls — a real cost on a mobile PWA, worth revisiting
+  (e.g. `pdf-lib`, or a lighter jsPDF entry point) if install size becomes a
+  problem.
+
 ## Ready to build / open items
 
 - The installable icon is SVG-only (see above) — a real PNG icon set is a good
