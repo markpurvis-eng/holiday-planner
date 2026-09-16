@@ -179,6 +179,25 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   attachment groups, the booking/itinerary card itself). This page doesn't
   build its own receipts gallery on top of that.
 
+- **Ad hoc expenses (tips, souvenirs, taxis, etc.)**: a new `expense` table
+  (RLS matches every other table — `allow all for authenticated`), separate
+  from `booking`/`itinerary_item` since these are recorded *after* they're
+  paid, not planned then settled later — no outstanding/unpaid state, and
+  the FX rate is locked at entry time (fetched immediately on save) rather
+  than on a later transition. `src/pages/AddExpense.tsx` mirrors
+  `AddLink.tsx`'s attach-mode picker (Trip / Booking / Itinerary item,
+  trip-level by default) plus label/amount/currency/date-paid fields.
+  `src/lib/costs.ts`'s `buildExpenseCostLines()` folds them into the same
+  `CostLine[]` model `CostsTab` already uses for bookings/itinerary items —
+  they always land in the Paid section, tagged with an "Ad hoc" badge to
+  distinguish them at a glance. Deletable outright (unlike bookings/
+  itinerary items) since they're user-entered app-native data with no
+  external source to stay in sync with. The existing receipt-upload button
+  works on expense lines too, but falls back to a trip-level attachment
+  (an expense has no `document`/`link` attachment point of its own) —
+  fine for now, but a known imprecision if expenses accumulate many
+  receipts each.
+
 ## Ready to build / open items
 
 - The installable icon is SVG-only (see above) — a real PNG icon set is a good

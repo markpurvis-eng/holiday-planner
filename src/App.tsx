@@ -9,6 +9,7 @@ import Upload from './pages/Upload'
 import AddLink from './pages/AddLink'
 import Settings from './pages/Settings'
 import AllCosts from './pages/AllCosts'
+import AddExpense from './pages/AddExpense'
 
 function Shell({ children }: { children: ReactNode }) {
   return (
@@ -80,6 +81,16 @@ export default function App() {
             <ProtectedRoute>
               <Shell>
                 <AllCosts />
+              </Shell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/add-expense"
+          element={
+            <ProtectedRoute>
+              <Shell>
+                <AddExpense />
               </Shell>
             </ProtectedRoute>
           }

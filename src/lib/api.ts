@@ -3,6 +3,7 @@ import type {
   Booking,
   Document,
   DocumentType,
+  Expense,
   ItineraryItem,
   Link,
   Payment,
@@ -217,6 +218,49 @@ export async function createLink(link: {
   const { data, error } = await supabase.from('link').insert(link).select().single()
   if (error) throw error
   return data
+}
+
+// --- Expenses (ad hoc payments: tips, souvenirs, taxis, etc.) ---
+// Distinct from booking/itinerary_item, which represent planned costs.
+// An expense is recorded after it's paid, so it has no unpaid/outstanding
+// state and no payment_status column - it's simply always paid, with its
+// FX rate locked at entry time rather than on a later transition.
+
+export async function getExpenses(tripId: string): Promise<Expense[]> {
+  const { data, error } = await supabase
+    .from('expense')
+    .select('*')
+    .eq('trip_id', tripId)
+    .order('paid_on', { ascending: false })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function createExpense(expense: {
+  trip_id: string
+  booking_id?: string | null
+  itinerary_item_id?: string | null
+  label: string
+  amount: number
+  currency: string
+  paid_on: string
+  fx_rate_to_gbp: number
+  fx_rate_locked_at: string
+}): Promise<Expense> {
+  const { data, error } = await supabase.from('expense').insert(expense).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function updateExpense(id: string, updates: Partial<Expense>): Promise<Expense> {
+  const { data, error } = await supabase.from('expense').update(updates).eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteExpense(id: string): Promise<void> {
+  const { error } = await supabase.from('expense').delete().eq('id', id)
+  if (error) throw error
 }
 
 // --- Todos ---

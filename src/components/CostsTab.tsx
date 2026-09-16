@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { Booking, ItineraryItem } from '../lib/types'
-import { buildCostLines, ensureLockedRates, setManualRate } from '../lib/costs'
+import { buildCostLines, buildExpenseCostLines, ensureLockedRates, setManualRate, deleteExpenseLine } from '../lib/costs'
 import type { CostLine } from '../lib/costs'
 import { fetchGbpRate } from '../lib/fx'
 import { formatMoney } from '../lib/format'
-import { uploadDocumentFile, createDocument } from '../lib/api'
+import { uploadDocumentFile, createDocument, getExpenses } from '../lib/api'
 import { LoadingSpinner } from './LoadingSpinner'
 import { PaymentBadge } from './PaymentBadge'
 
@@ -32,8 +33,9 @@ export function CostsTab({
 
     async function load() {
       setError(false)
-      const raw = buildCostLines(bookings, itinerary)
       try {
+        const expenses = await getExpenses(tripId)
+        const raw = [...buildCostLines(bookings, itinerary), ...buildExpenseCostLines(expenses)]
         const locked = await ensureLockedRates(raw)
         if (cancelled) return
 
@@ -63,9 +65,13 @@ export function CostsTab({
     // actually changes size/identity - re-running on every render would
     // refetch rates constantly. Keying off length is an approximation;
     // full correctness would need a stable dependency (e.g. a data
-    // version from the parent), not needed at this app's scale.
+    // version from the parent), not needed at this app's scale. Doesn't
+    // include a similar guard for expenses, since there's no cheap
+    // "has it changed" signal available here — refetched every time this
+    // effect runs, which only happens when bookings/itinerary length
+    // changes or tripId changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookings.length, itinerary.length])
+  }, [tripId, bookings.length, itinerary.length])
 
   function gbpValue(line: CostLine): { value: number; locked: boolean } {
     if (line.fxRateToGbp != null) return { value: line.cost * line.fxRateToGbp, locked: true }
@@ -93,6 +99,12 @@ export function CostsTab({
     } finally {
       setSavingKey(null)
     }
+  }
+
+  async function handleDeleteExpense(line: CostLine) {
+    if (!window.confirm(`Delete "${line.label}"? This can't be undone.`)) return
+    await deleteExpenseLine(line)
+    setLines((prev) => (prev ? prev.filter((l) => l.key !== line.key) : prev))
   }
 
   function handleAttachReceiptClick(line: CostLine) {
@@ -136,9 +148,17 @@ export function CostsTab({
 
   if (lines.length === 0) {
     return (
-      <p className="rounded-2xl bg-white p-4 text-sm text-stone-500 shadow-sm ring-1 ring-stone-100">
-        No costed bookings or itinerary items yet.
-      </p>
+      <div className="space-y-3">
+        <p className="rounded-2xl bg-white p-4 text-sm text-stone-500 shadow-sm ring-1 ring-stone-100">
+          No costed bookings, itinerary items, or expenses yet.
+        </p>
+        <Link
+          to={`/add-expense?trip=${tripId}`}
+          className="block rounded-2xl bg-teal-50 p-3 text-center text-sm font-medium text-teal-700 hover:bg-teal-100"
+        >
+          + Add an ad hoc expense
+        </Link>
+      </div>
     )
   }
 
@@ -156,9 +176,14 @@ export function CostsTab({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className="truncate font-medium text-stone-800">{line.label}</p>
-            {line.paymentStatus === 'partially_paid' && (
-              <div className="mt-1">
-                <PaymentBadge status="partially_paid" />
+            {(line.kind === 'expense' || line.paymentStatus === 'partially_paid') && (
+              <div className="mt-1 flex gap-1.5">
+                {line.kind === 'expense' && (
+                  <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-500">
+                    Ad hoc
+                  </span>
+                )}
+                {line.paymentStatus === 'partially_paid' && <PaymentBadge status="partially_paid" />}
               </div>
             )}
           </div>
@@ -206,7 +231,7 @@ export function CostsTab({
             {formatMoney(value, 'GBP')}
           </p>
         </div>
-        <div className="mt-2 flex items-center justify-end">
+        <div className="mt-2 flex items-center justify-end gap-3">
           {receiptState === 'uploading' && <span className="text-xs text-stone-400">Uploading…</span>}
           {receiptState === 'done' && <span className="text-xs text-emerald-600">Receipt attached ✓</span>}
           {receiptState === 'error' && (
@@ -216,9 +241,18 @@ export function CostsTab({
             <button
               type="button"
               onClick={() => handleAttachReceiptClick(line)}
-              className="ml-3 text-xs text-stone-400 hover:text-teal-600"
+              className="text-xs text-stone-400 hover:text-teal-600"
             >
               📷 Add receipt
+            </button>
+          )}
+          {line.kind === 'expense' && (
+            <button
+              type="button"
+              onClick={() => handleDeleteExpense(line)}
+              className="text-xs text-stone-400 hover:text-red-500"
+            >
+              Delete
             </button>
           )}
         </div>
@@ -236,6 +270,12 @@ export function CostsTab({
         className="hidden"
         onChange={handleReceiptFileChange}
       />
+      <Link
+        to={`/add-expense?trip=${tripId}`}
+        className="block rounded-2xl bg-teal-50 p-3 text-center text-sm font-medium text-teal-700 hover:bg-teal-100"
+      >
+        + Add an ad hoc expense
+      </Link>
       <div className="space-y-3">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-400">
           Paid ({formatMoney(paidTotal, 'GBP')})

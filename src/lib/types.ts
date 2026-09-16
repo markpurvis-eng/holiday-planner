@@ -47,6 +47,20 @@ export type Booking = {
   fx_rate_locked_at: string | null
 }
 
+export type Expense = {
+  id: string
+  trip_id: string
+  booking_id: string | null
+  itinerary_item_id: string | null
+  label: string
+  amount: number
+  currency: string
+  paid_on: string
+  fx_rate_to_gbp: number | null
+  fx_rate_locked_at: string | null
+  created_at: string
+}
+
 export type Payment = {
   id: string
   booking_id: string

@@ -60,6 +60,7 @@ $SrcFileMap = @{
     'Dashboard.tsx'       = 'pages\Dashboard.tsx'
     'Settings.tsx'        = 'pages\Settings.tsx'
     'AllCosts.tsx'        = 'pages\AllCosts.tsx'
+    'AddExpense.tsx'      = 'pages\AddExpense.tsx'
     'TripCard.tsx'        = 'components\TripCard.tsx'
     'WeatherForecast.tsx' = 'components\WeatherForecast.tsx'
     'BottomNav.tsx'       = 'components\BottomNav.tsx'
