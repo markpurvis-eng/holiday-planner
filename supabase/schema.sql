@@ -40,6 +40,12 @@ create table if not exists trip (
 -- generated yet for this trip, so the Share button stays hidden.
 alter table trip add column if not exists public_itinerary_generated_at timestamptz;
 
+-- Locked total cost per trip, shown on the Dashboard trip card with zero
+-- extra DB overhead (getTrips() already selects *). See AGENTS.md,
+-- "Locked trip total cost" for how/when this gets set.
+alter table trip add column if not exists total_cost_gbp numeric;
+alter table trip add column if not exists total_cost_locked_at timestamptz;
+
 -- Time-of-day precision for bookings: nullable and additive, so existing
 -- bookings keep working with date-only ordering until real times are
 -- backfilled (see AGENTS.md, "Bookings on the Itinerary tab").

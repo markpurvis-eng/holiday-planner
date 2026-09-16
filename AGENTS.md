@@ -198,6 +198,32 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   fine for now, but a known imprecision if expenses accumulate many
   receipts each.
 
+- **Locked trip total cost, shown on the Dashboard card**: `trip.total_cost_gbp`/
+  `total_cost_locked_at` (nullable — only set once Mark says a trip is
+  complete). `TripCard.tsx` shows it whenever non-null, alongside the
+  countdown badge. Deliberately **not** a live/computed-on-render figure —
+  the whole point is showing a trip's cost with zero extra DB overhead
+  (`getTrips()` already selects `*`, so this comes back for free) and a
+  guarantee it won't shift once a trip is done. **Currently a
+  conversational/manual operation, not an in-app action**: when Mark says
+  a trip is locked in, the procedure is:
+  1. Query all non-cancelled cost lines for the trip (`booking`,
+     `itinerary_item`, `expense`), same shape as `buildCostLines()`/
+     `buildExpenseCostLines()` in `src/lib/costs.ts`.
+  2. Confirm every cost-bearing line (`cost`/`amount` not null) is
+     `payment_status = 'paid'` (or an expense, which is always paid) **and**
+     has `fx_rate_to_gbp` set. If anything's outstanding or unlocked, don't
+     lock — say so rather than caching a partial figure. (An unlocked-but-
+     paid line means Mark hasn't opened that trip's Costs tab since — that
+     visit is what triggers `ensureLockedRates()` — so ask him to do that
+     first, or fetch the missing rate(s) directly if reachable.)
+  3. Sum `cost * fx_rate_to_gbp` across every line, write it to
+     `total_cost_gbp`, stamp `total_cost_locked_at = now()`, and set
+     `trip.status = 'past'` if it isn't already.
+  If an expense gets added to an already-locked trip later, redo this same
+  check-and-lock pass for that trip rather than leaving the cached total
+  stale.
+
 ## Ready to build / open items
 
 - The installable icon is SVG-only (see above) — a real PNG icon set is a good

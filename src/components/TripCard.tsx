@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { Trip } from '../lib/types'
-import { formatDate, daysUntil } from '../lib/format'
+import { formatDate, daysUntil, formatMoney } from '../lib/format'
 
 function formatDateRange(start: string, end: string) {
   const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
@@ -34,6 +34,9 @@ export function TripCard({ trip }: { trip: Trip }) {
           <p className="mt-1 text-xs font-medium text-teal-600">
             {formatCountdown(daysUntil(trip.start_date))}
           </p>
+        )}
+        {trip.total_cost_gbp != null && (
+          <p className="mt-1 text-xs text-stone-400">Total: {formatMoney(trip.total_cost_gbp, 'GBP')}</p>
         )}
       </div>
       {trip.status === 'active' && (
