@@ -1,10 +1,11 @@
 <#
 .SYNOPSIS
   Moves (or copies) Claude-generated Holiday Planner files from a flat
-  folder — e.g. Downloads — into their correct locations in the repo.
-  Handles both individually-downloaded files AND a "Download all" zip.
-  Covers files under src/ AND repo-root-level files (package.json,
-  supabase/schema.sql, AGENTS.md, etc).
+  folder — e.g. Downloads — into their correct locations. Handles both
+  individually-downloaded files AND a "Download all" zip. Covers files
+  under src/, repo-root-level files (package.json, supabase/schema.sql,
+  AGENTS.md, etc), AND files that live outside the repo entirely (the
+  roadmap doc, in Mark's OneDrive-synced Projects folder).
 
 .USAGE
   From PowerShell, in any folder:
@@ -19,6 +20,9 @@
     -RepoRoot <path>       The repo root to copy into (both the root-level
                            map and the src/ map are resolved from this).
                            Default: C:\Users\markp\src\holiday-planner
+    -OneDriveRoot <path>   Destination for files that live outside the repo
+                           entirely (currently just the roadmap doc).
+                           Default: C:\Users\markp\OneDrive\Sync\Projects
     -KeepSource            Copy instead of move (leaves originals in place,
                            including any zip -- it won't be deleted).
 
@@ -32,6 +36,7 @@
 param(
     [string]$SourceFolder = "$env:USERPROFILE\Downloads",
     [string]$RepoRoot = "C:\Users\markp\src\holiday-planner",
+    [string]$OneDriveRoot = "C:\Users\markp\OneDrive\Sync\Projects",
     [switch]$KeepSource
 )
 
@@ -47,6 +52,8 @@ $SrcFileMap = @{
     'shareItinerary.ts'   = 'lib\shareItinerary.ts'
     'itineraryTimeline.ts' = 'lib\itineraryTimeline.ts'
     'attachmentGroups.ts' = 'lib\attachmentGroups.ts'
+    'fx.ts'               = 'lib\fx.ts'
+    'costs.ts'            = 'lib\costs.ts'
     'TripDetail.tsx'      = 'pages\TripDetail.tsx'
     'AddLink.tsx'         = 'pages\AddLink.tsx'
     'Upload.tsx'          = 'pages\Upload.tsx'
@@ -56,6 +63,7 @@ $SrcFileMap = @{
     'WeatherForecast.tsx' = 'components\WeatherForecast.tsx'
     'BottomNav.tsx'       = 'components\BottomNav.tsx'
     'PaymentBadge.tsx'    = 'components\PaymentBadge.tsx'
+    'CostsTab.tsx'        = 'components\CostsTab.tsx'
     'deploy-claude-files.ps1' = 'deploy-claude-files.ps1'
 }
 
@@ -77,6 +85,13 @@ $RootFileMap = @{
 }
 
 $SrcRoot = Join-Path $RepoRoot 'src'
+
+# Filename -> path relative to $OneDriveRoot. For files that aren't part
+# of the repo at all -- currently just the roadmap doc, which lives in
+# Mark's OneDrive-synced Projects folder, not the git repo.
+$OneDriveFileMap = @{
+    'Holiday_App_Issues_and_Roadmap.md' = 'Holiday_App_Issues_and_Roadmap.md'
+}
 
 if (-not (Test-Path $RepoRoot)) {
     Write-Error "Repo folder not found at '$RepoRoot'. Pass -RepoRoot to override."
@@ -130,6 +145,9 @@ foreach ($file in $candidates) {
     } elseif ($SrcFileMap[$normalizedName]) {
         $relativePath = $SrcFileMap[$normalizedName]
         $base = $SrcRoot
+    } elseif ($OneDriveFileMap[$normalizedName]) {
+        $relativePath = $OneDriveFileMap[$normalizedName]
+        $base = $OneDriveRoot
     } else {
         continue  # not one of ours -- leave it alone
     }
@@ -140,8 +158,7 @@ foreach ($file in $candidates) {
         New-Item -ItemType Directory -Path $destinationDir -Force | Out-Null
     }
 
-    $displayPath = $destination.Substring($RepoRoot.Length).TrimStart('\')
-    Write-Host "$verb $($file.Name) -> $displayPath"
+    Write-Host "$verb $($file.Name) -> $destination"
     Copy-Item -Path $file.FullName -Destination $destination -Force
     $matched++
 }
@@ -154,7 +171,7 @@ if (Test-Path $tempExtract) {
 if (-not $KeepSource) {
     foreach ($file in $looseFilesToClean) {
         $normalizedName = $file.Name -replace '\s\(\d+\)(\.\w+)$', '$1'
-        if ($RootFileMap[$normalizedName] -or $SrcFileMap[$normalizedName]) {
+        if ($RootFileMap[$normalizedName] -or $SrcFileMap[$normalizedName] -or $OneDriveFileMap[$normalizedName]) {
             Remove-Item -Path $file.FullName -Force
         }
     }
@@ -164,7 +181,7 @@ if (-not $KeepSource) {
 }
 
 Write-Host ""
-Write-Host "Done. $matched file(s) placed under $RepoRoot."
+Write-Host "Done. $matched file(s) placed."
 if ($matched -eq 0) {
     Write-Host "No matching files found in $SourceFolder -- check the file maps, or that Download all was used correctly."
 }

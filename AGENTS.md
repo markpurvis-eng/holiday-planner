@@ -141,6 +141,26 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   within each attachment group; Links don't have a type, so each group is
   just its own flat card list.
 
+- **Costs tab, GBP roll-up**: `src/lib/fx.ts` (`fetchGbpRate()`, cached
+  per-currency for the page's lifetime) wraps Frankfurter
+  (`api.frankfurter.dev/v2/rate/{base}/{quote}`, free, no key). `src/lib/costs.ts`
+  builds a unified `CostLine[]` from non-cancelled, cost-bearing bookings and
+  itinerary items, and implements the confirmed rate-locking design: once a
+  line is paid, its GBP rate is fetched once and stored
+  (`fx_rate_to_gbp`/`fx_rate_locked_at` on both `booking` and
+  `itinerary_item`) so the figure never recalculates; outstanding lines show
+  a live "≈" rate fetched at render time. **Adaptation from the original
+  design**: "lock the moment a line flips to paid" assumes an edit event to
+  hook — there's no in-app edit screen yet (Missing Features #20), so
+  `ensureLockedRates()` does the equivalent job lazily instead, locking any
+  paid-but-unlocked line the first time the Costs tab notices it. This
+  naturally covers the "archive safety net" from the design too, since
+  archived trips go through the same check rather than needing separate
+  handling. `src/components/CostsTab.tsx` renders Paid/Outstanding sections
+  plus a Grand total, and a small inline rate-edit affordance per line for
+  the manual-override case (a currency Frankfurter doesn't cover, or Mark's
+  card's actual applied rate).
+
 ## Ready to build / open items
 
 - The installable icon is SVG-only (see above) — a real PNG icon set is a good

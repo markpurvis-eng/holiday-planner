@@ -23,8 +23,9 @@ import { getHideCancelledItems } from '../lib/settings'
 import { PaymentBadge } from '../components/PaymentBadge'
 import { mergeItineraryTimeline } from '../lib/itineraryTimeline'
 import { buildAttachmentGroups } from '../lib/attachmentGroups'
+import { CostsTab } from '../components/CostsTab'
 
-type Tab = 'bookings' | 'itinerary' | 'documents' | 'links' | 'todos'
+type Tab = 'bookings' | 'itinerary' | 'documents' | 'links' | 'costs' | 'todos'
 
 // Scrolls a card into view sitting just below the sticky header, instead of
 // scrollIntoView's block:'start'/'center', which would tuck the card
@@ -42,7 +43,7 @@ function scrollToItem(targetId: string, behavior: ScrollBehavior) {
 export default function TripDetail() {
   const { id } = useParams<{ id: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
-  const VALID_TABS: Tab[] = ['bookings', 'itinerary', 'documents', 'links', 'todos']
+  const VALID_TABS: Tab[] = ['bookings', 'itinerary', 'documents', 'links', 'costs', 'todos']
   const tabParam = searchParams.get('tab')
   const initialTab = VALID_TABS.includes(tabParam as Tab) ? (tabParam as Tab) : 'bookings'
   const highlightId = searchParams.get('highlight')
@@ -240,6 +241,7 @@ export default function TripDetail() {
             { id: 'itinerary', label: 'Itinerary' },
             { id: 'documents', label: 'Documents' },
             { id: 'links', label: 'Links' },
+            { id: 'costs', label: 'Costs' },
             { id: 'todos', label: 'To-dos' },
           ]}
           active={tab}
@@ -499,6 +501,8 @@ export default function TripDetail() {
             </div>
           </>
         )}
+
+        {tab === 'costs' && <CostsTab bookings={bookings} itinerary={itinerary} />}
 
         {tab === 'todos' && (
           <>

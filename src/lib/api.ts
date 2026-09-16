@@ -109,6 +109,12 @@ export async function createBooking(booking: Partial<Booking>): Promise<Booking>
   return data
 }
 
+export async function updateBooking(id: string, updates: Partial<Booking>): Promise<Booking> {
+  const { data, error } = await supabase.from('booking').update(updates).eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
 // --- Payments ---
 
 export async function getPayments(bookingId: string): Promise<Payment[]> {
@@ -142,6 +148,12 @@ export async function getItinerary(tripId: string): Promise<ItineraryItem[]> {
 
 export async function createItineraryItem(item: Partial<ItineraryItem>): Promise<ItineraryItem> {
   const { data, error } = await supabase.from('itinerary_item').insert(item).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function updateItineraryItem(id: string, updates: Partial<ItineraryItem>): Promise<ItineraryItem> {
+  const { data, error } = await supabase.from('itinerary_item').update(updates).eq('id', id).select().single()
   if (error) throw error
   return data
 }
