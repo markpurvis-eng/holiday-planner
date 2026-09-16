@@ -237,7 +237,12 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   tab renders it. An expense attached to a booking/itinerary item nests
   under that line's own card as a collapsible "Ad hoc items" sub-total;
   every trip-level expense (attached to neither) collects into one
-  collapsible "🧾 Ad hoc expenses" bundle card instead of N flat rows.
+  collapsible "🧾 Ad hoc expenses" bundle card instead of N flat rows. The
+  nested "Ad hoc items" toggle+list renders as trailing content *inside*
+  the same card as its parent line (`renderLine()` takes an optional
+  `extra` node for this), not a second box stacked underneath — nested
+  child lines use a `variant: 'plain'` row (no shadow/ring of their own)
+  rather than looking like mini-cards nested inside a card.
   Receipt uploads for an attached expense now go to that same
   booking/itinerary item (via the expense's own `attachedBookingId`/
   `attachedItineraryItemId`), not a trip-level fallback — a fix that fell

@@ -208,12 +208,17 @@ export function CostsTab({
   const paidRows = rows.filter((r) => r.kind === 'expenseBundle' || r.line.paymentStatus === 'paid')
   const outstandingRows = rows.filter((r) => r.kind === 'line' && r.line.paymentStatus !== 'paid')
 
-  function renderLine(line: CostLine) {
+  function renderLine(line: CostLine, opts: { variant?: 'card' | 'plain'; extra?: React.ReactNode } = {}) {
+    const { variant = 'card', extra } = opts
     const { value, locked: rateLocked } = gbpValue(line)
     const isEditing = editingKey === line.key
     const receiptState = receiptStatus.get(line.key)
+    const outerClass =
+      variant === 'card'
+        ? 'rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100'
+        : 'border-t border-stone-100 pt-3 first:border-t-0 first:pt-0'
     return (
-      <div key={line.key} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100">
+      <div key={line.key} className={outerClass}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className="truncate font-medium text-stone-800">{line.label}</p>
@@ -301,6 +306,7 @@ export function CostsTab({
             </button>
           )}
         </div>
+        {extra}
       </div>
     )
   }
@@ -309,7 +315,7 @@ export function CostsTab({
     const total = nestedLines.reduce((sum, l) => sum + gbpValue(l).value, 0)
     const isOpen = expandedKeys.has(key)
     return (
-      <div key={key} className="mt-2 border-t border-stone-100 pt-2">
+      <div key={key} className="mt-3 border-t border-stone-100 pt-3">
         <button
           type="button"
           onClick={() => toggleExpanded(key)}
@@ -320,7 +326,11 @@ export function CostsTab({
           </span>
           <span>{formatMoney(total, 'GBP')}</span>
         </button>
-        {isOpen && <div className="mt-2 space-y-2 pl-3">{nestedLines.map(renderLine)}</div>}
+        {isOpen && (
+          <div className="mt-2 space-y-2 pl-3">
+            {nestedLines.map((l) => renderLine(l, { variant: 'plain' }))}
+          </div>
+        )}
       </div>
     )
   }
@@ -344,7 +354,9 @@ export function CostsTab({
           </span>
         </button>
         {isOpen && (
-          <div className="mt-3 space-y-2 border-t border-stone-100 pt-3">{bundleLines.map(renderLine)}</div>
+          <div className="mt-3 space-y-2 border-t border-stone-100 pt-3">
+            {bundleLines.map((l) => renderLine(l, { variant: 'plain' }))}
+          </div>
         )}
       </div>
     )
@@ -354,16 +366,11 @@ export function CostsTab({
     if (row.kind === 'expenseBundle') {
       return renderBundleCard(row.key, row.label, row.lines)
     }
-    return (
-      <div key={row.line.key}>
-        {renderLine(row.line)}
-        {row.nested.length > 0 && (
-          <div className="rounded-b-2xl bg-white px-4 pb-3 shadow-sm ring-1 ring-stone-100">
-            {renderNestedGroup(`${row.line.key}-adhoc`, 'Ad hoc items', row.nested)}
-          </div>
-        )}
-      </div>
-    )
+    const extra =
+      row.nested.length > 0
+        ? renderNestedGroup(`${row.line.key}-adhoc`, 'Ad hoc items', row.nested)
+        : undefined
+    return renderLine(row.line, { extra })
   }
 
   return (
