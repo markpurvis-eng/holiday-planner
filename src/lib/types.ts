@@ -105,6 +105,7 @@ export type Document = {
   trip_id: string | null
   booking_id: string | null
   itinerary_item_id: string | null
+  expense_id: string | null
   day_date: string | null
   created_at: string
 }

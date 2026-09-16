@@ -242,18 +242,51 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   the same card as its parent line (`renderLine()` takes an optional
   `extra` node for this), not a second box stacked underneath — nested
   child lines use a `variant: 'plain'` row (no shadow/ring of their own)
-  rather than looking like mini-cards nested inside a card.
-  Receipt uploads for an attached expense now go to that same
-  booking/itinerary item (via the expense's own `attachedBookingId`/
-  `attachedItineraryItemId`), not a trip-level fallback — a fix that fell
-  out of already having that data on hand for the grouping, resolving the
-  imprecision flagged when receipt upload was first added. **Zero-cost
+  rather than looking like mini-cards nested inside a card. **Persistent
+  receipt indicator**: the "📷 Add receipt" flow originally only showed a
+  transient "Receipt attached ✓" message for the rest of that session —
+  once you navigated away, there was no trace anything was attached.
+  `CostsTab` now fetches `Document[]` for the trip alongside everything
+  else, and renders `AttachedItems` (the same component the Bookings/
+  Itinerary tabs use) on every booking/itinerary_item line, matching by
+  `booking_id`/`itinerary_item_id`. A newly-uploaded receipt is also
+  pushed into local state immediately, so it appears without needing a
+  reload. Uploaded receipts default their `title` to the file name,
+  matching `Upload.tsx`'s own convention (previously left `null`, showing
+  as a generic "Document"). **`document.expense_id`** (new column, added
+  alongside `booking_id`/`itinerary_item_id`, which stay set too so the
+  Documents tab's existing attachment grouping — which only knows about
+  booking/itinerary attachment, not expenses — keeps working unchanged)
+  links a receipt to the *specific* ad hoc expense it belongs to, not just
+  the parent it's attached to. This is what lets a booking/itinerary
+  line's own `AttachedItems` exclude expense-linked receipts (they'd
+  otherwise show twice) while each ad hoc expense's own row shows just its
+  receipt via `documents.filter(d => d.expense_id === line.id)` — and it
+  fully resolves the earlier "trip-level expense receipts have nowhere
+  unambiguous to show" limitation, since the link no longer depends on
+  booking/itinerary attachment at all. **Zero-cost
   backfill**: if an expense attaches to a booking/itinerary item with no
   cost of its own (e.g. tipping the guide on a free walking tour),
   `AddExpense.tsx` gives that line a nominal `cost: 0, currency: 'GBP',
   payment_status: 'paid'` (rate pre-locked to 1) before creating the
   expense — otherwise there'd be no card for it to nest under, since the
   Costs tab only shows cost-bearing lines.
+
+- **`schema.sql` audit (16 Sep 2026)**: found and fixed real drift beyond
+  what earlier notes flagged — `booking.cancelled`/`destination_*`/
+  `fx_rate_*`, the equivalent `itinerary_item` columns, and the entire
+  `expense` table had been added live via direct migrations across this
+  session but never backported to this file (a gap in my own process, not
+  inherited). Also fixed a real ordering bug: the `start_time`/`end_time`
+  ALTER statements sat *before* `create table booking`, which would fail
+  on a fresh database. Reconciled the whole file column-by-column against
+  `information_schema.columns` rather than patching just the one thing
+  that prompted the check. **Found but unexplained**:
+  `document.drive_file_id`/`storage_path`/`migrated_at` exist live but
+  aren't created by anything in this repo or mentioned anywhere in this
+  file — added to `schema.sql` as a faithful mirror of what's live, but
+  their origin and purpose are unknown. Ask Mark before relying on or
+  removing them.
 
 ## Ready to build / open items
 

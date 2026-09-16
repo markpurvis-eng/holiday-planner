@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { Booking, ItineraryItem } from '../lib/types'
+import type { Booking, Document, ItineraryItem } from '../lib/types'
 import {
   buildCostLines,
   buildExpenseCostLines,
@@ -12,9 +12,10 @@ import {
 import type { CostLine, CostRow } from '../lib/costs'
 import { fetchGbpRate } from '../lib/fx'
 import { formatMoney } from '../lib/format'
-import { uploadDocumentFile, createDocument, getExpenses } from '../lib/api'
+import { uploadDocumentFile, createDocument, getExpenses, getDocuments } from '../lib/api'
 import { LoadingSpinner } from './LoadingSpinner'
 import { PaymentBadge } from './PaymentBadge'
+import { AttachedItems } from './AttachedItems'
 
 export function CostsTab({
   tripId,
@@ -28,6 +29,7 @@ export function CostsTab({
   locked?: boolean
 }) {
   const [lines, setLines] = useState<CostLine[] | null>(null)
+  const [documents, setDocuments] = useState<Document[]>([])
   const [liveRates, setLiveRates] = useState<Map<string, number>>(new Map())
   const [error, setError] = useState(false)
   const [editingKey, setEditingKey] = useState<string | null>(null)
@@ -56,7 +58,8 @@ export function CostsTab({
     async function load() {
       setError(false)
       try {
-        const expenses = await getExpenses(tripId)
+        const [expenses, docs] = await Promise.all([getExpenses(tripId), getDocuments(tripId)])
+        setDocuments(docs)
         const raw = [...buildCostLines(bookings, itinerary), ...buildExpenseCostLines(expenses)]
         const locked = await ensureLockedRates(raw)
         if (cancelled) return
@@ -151,13 +154,23 @@ export function CostsTab({
           : line.kind === 'expense'
             ? line.attachedItineraryItemId ?? null
             : null
-      await createDocument({
+      const newDoc = await createDocument({
         type: 'receipt',
         file_url: fileUrl,
+        title: file.name,
         trip_id: tripId,
         booking_id: bookingId,
         itinerary_item_id: itineraryItemId,
+        // Keeps booking_id/itinerary_item_id set to the expense's own
+        // parent too (not just expense_id) so the Documents tab's
+        // attachment grouping - which only knows about booking/itinerary
+        // attachment, not expenses - still surfaces it under the right
+        // booking/itinerary group. expense_id is what lets CostsTab show
+        // it specifically on this expense's own row, not just generically
+        // on the parent's.
+        expense_id: line.kind === 'expense' ? line.id : null,
       })
+      setDocuments((prev) => [newDoc, ...prev])
       setReceiptStatus((prev) => new Map(prev).set(line.key, 'done'))
     } catch {
       setReceiptStatus((prev) => new Map(prev).set(line.key, 'error'))
@@ -213,6 +226,19 @@ export function CostsTab({
     const { value, locked: rateLocked } = gbpValue(line)
     const isEditing = editingKey === line.key
     const receiptState = receiptStatus.get(line.key)
+    // A booking/itinerary line's own AttachedItems excludes documents tied
+    // to a specific child expense (expense_id set) - those show on the
+    // expense's own row instead, via the branch below, so the same photo
+    // doesn't appear twice and it's clear which ad hoc item it belongs to.
+    // An expense line shows only documents linked to it specifically.
+    const attachedDocs =
+      line.kind === 'booking'
+        ? documents.filter((d) => d.booking_id === line.id && !d.expense_id)
+        : line.kind === 'itinerary_item'
+          ? documents.filter((d) => d.itinerary_item_id === line.id && !d.expense_id)
+          : line.kind === 'expense'
+            ? documents.filter((d) => d.expense_id === line.id)
+            : []
     const outerClass =
       variant === 'card'
         ? 'rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100'
@@ -306,6 +332,7 @@ export function CostsTab({
             </button>
           )}
         </div>
+        <AttachedItems documents={attachedDocs} links={[]} />
         {extra}
       </div>
     )

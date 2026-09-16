@@ -188,6 +188,7 @@ export async function createDocument(doc: {
   trip_id?: string | null
   booking_id?: string | null
   itinerary_item_id?: string | null
+  expense_id?: string | null
   day_date?: string | null
 }): Promise<Document> {
   const { data, error } = await supabase.from('document').insert(doc).select().single()

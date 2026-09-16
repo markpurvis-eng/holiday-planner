@@ -36,6 +36,14 @@ create table if not exists trip (
   created_at timestamptz not null default now()
 );
 
+-- Added after initial release: a single anchor point (used for the
+-- pre-trip weather forecast) for trips with one main destination.
+-- Multi-city trips also set the same three columns on booking/
+-- itinerary_item, which take priority once the trip is under way.
+alter table trip add column if not exists destination_name text;
+alter table trip add column if not exists destination_lat numeric;
+alter table trip add column if not exists destination_lng numeric;
+
 -- Added for the share-itinerary feature: null means no public PDF has been
 -- generated yet for this trip, so the Share button stays hidden.
 alter table trip add column if not exists public_itinerary_generated_at timestamptz;
@@ -45,12 +53,6 @@ alter table trip add column if not exists public_itinerary_generated_at timestam
 -- "Locked trip total cost" for how/when this gets set.
 alter table trip add column if not exists total_cost_gbp numeric;
 alter table trip add column if not exists total_cost_locked_at timestamptz;
-
--- Time-of-day precision for bookings: nullable and additive, so existing
--- bookings keep working with date-only ordering until real times are
--- backfilled (see AGENTS.md, "Bookings on the Itinerary tab").
-alter table booking add column if not exists start_time time;
-alter table booking add column if not exists end_time time;
 
 -- --- booking -------------------------------------------------------------
 
@@ -72,6 +74,31 @@ create table if not exists booking (
 );
 
 alter table booking add column if not exists currency text default 'GBP';
+
+-- Added after initial release: a cancelled booking still exists as a
+-- record (refs, payment history) but shouldn't count towards costs or
+-- appear on the Itinerary timeline by default.
+alter table booking add column if not exists cancelled boolean not null default false;
+
+-- Per-booking weather anchor (see trip.destination_* above) -- set for
+-- accommodation/port-stop bookings on multi-city trips, deliberately left
+-- null for cruise ships, flights, car hire and tours, where a single
+-- point would mislead.
+alter table booking add column if not exists destination_name text;
+alter table booking add column if not exists destination_lat numeric;
+alter table booking add column if not exists destination_lng numeric;
+
+-- Time-of-day precision for bookings: nullable and additive, so existing
+-- bookings keep working with date-only ordering until real times are
+-- backfilled (see AGENTS.md, "Bookings on the Itinerary tab").
+alter table booking add column if not exists start_time time;
+alter table booking add column if not exists end_time time;
+
+-- Costs tab, GBP roll-up: rate locked at the line level once a cost line
+-- is paid, so its GBP figure never recalculates. See AGENTS.md,
+-- "Costs tab, GBP roll-up".
+alter table booking add column if not exists fx_rate_to_gbp numeric;
+alter table booking add column if not exists fx_rate_locked_at timestamptz;
 
 -- --- payment -------------------------------------------------------------
 
@@ -105,6 +132,50 @@ create table if not exists itinerary_item (
 
 alter table itinerary_item add column if not exists cost numeric;
 
+-- Same reasoning as booking.cancelled above.
+alter table itinerary_item add column if not exists cancelled boolean not null default false;
+
+-- Same reasoning as booking.currency above.
+alter table itinerary_item add column if not exists currency text default 'GBP';
+
+-- Same reasoning as booking.payment_status above -- itinerary items with
+-- a cost (a tour, a dinner) need the same paid/partially_paid/unpaid
+-- tracking bookings have.
+alter table itinerary_item add column if not exists payment_status text not null default 'unpaid'
+  check (payment_status in ('unpaid', 'partially_paid', 'paid'));
+
+-- Per-itinerary-item weather anchor (see trip.destination_* above) -- set
+-- for day-by-day cruise port stops, where the trip/booking-level anchor
+-- can't track a moving ship.
+alter table itinerary_item add column if not exists destination_name text;
+alter table itinerary_item add column if not exists destination_lat numeric;
+alter table itinerary_item add column if not exists destination_lng numeric;
+
+-- Costs tab, GBP roll-up -- same reasoning as booking.fx_rate_* above.
+alter table itinerary_item add column if not exists fx_rate_to_gbp numeric;
+alter table itinerary_item add column if not exists fx_rate_locked_at timestamptz;
+
+-- --- expense -----------------------------------------------------------
+-- Ad hoc payments made during a trip (tips, souvenirs, taxis, etc.) --
+-- distinct from booking/itinerary_item, which represent planned costs.
+-- An expense is recorded after it's paid, so it's always "paid" -- there's
+-- no outstanding/unpaid state, and the FX rate is locked at entry time
+-- rather than on a later transition. See AGENTS.md, "Ad hoc expenses".
+
+create table if not exists expense (
+  id uuid primary key default gen_random_uuid(),
+  trip_id uuid not null references trip(id) on delete cascade,
+  booking_id uuid references booking(id) on delete set null,
+  itinerary_item_id uuid references itinerary_item(id) on delete set null,
+  label text not null,
+  amount numeric not null,
+  currency text not null,
+  paid_on date not null default current_date,
+  fx_rate_to_gbp numeric,
+  fx_rate_locked_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
 -- --- document ------------------------------------------------------------
 
 create table if not exists document (
@@ -124,6 +195,21 @@ create table if not exists document (
 );
 
 alter table document add column if not exists itinerary_item_id uuid references itinerary_item(id) on delete cascade;
+
+-- Added for ad hoc expenses: links a receipt to the specific expense it
+-- belongs to, not just the booking/itinerary item the expense itself is
+-- attached to (booking_id/itinerary_item_id above are still set too, so
+-- the Documents tab's attachment grouping -- which only knows about
+-- booking/itinerary attachment, not expenses -- still works unchanged).
+alter table document add column if not exists expense_id uuid references expense(id) on delete set null;
+
+-- Present in the live database but not created by anything in this repo
+-- or documented in AGENTS.md -- added here only to keep this file a
+-- faithful mirror of what's actually live. Origin unknown; ask before
+-- relying on or removing these.
+alter table document add column if not exists drive_file_id text;
+alter table document add column if not exists storage_path text;
+alter table document add column if not exists migrated_at timestamptz;
 
 -- --- link ------------------------------------------------------------------
 
@@ -165,6 +251,7 @@ alter table trip enable row level security;
 alter table booking enable row level security;
 alter table payment enable row level security;
 alter table itinerary_item enable row level security;
+alter table expense enable row level security;
 alter table document enable row level security;
 alter table link enable row level security;
 alter table todo enable row level security;
@@ -183,6 +270,9 @@ create policy "allow all for authenticated" on payment for all to authenticated 
 
 drop policy if exists "allow all for authenticated" on itinerary_item;
 create policy "allow all for authenticated" on itinerary_item for all to authenticated using (true) with check (true);
+
+drop policy if exists "allow all for authenticated" on expense;
+create policy "allow all for authenticated" on expense for all to authenticated using (true) with check (true);
 
 drop policy if exists "allow all for authenticated" on document;
 create policy "allow all for authenticated" on document for all to authenticated using (true) with check (true);
