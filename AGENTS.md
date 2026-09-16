@@ -161,6 +161,24 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   the manual-override case (a currency Frankfurter doesn't cover, or Mark's
   card's actual applied rate).
 
+- **Total Costs dashboard, across all trips**: `src/pages/AllCosts.tsx`
+  (route `/costs`, its own bottom-nav entry) lists every trip — active and
+  archived, via the same unfiltered `getTrips()` — as a collapsible section.
+  Deliberately collapsed by default and only rendered once expanded: mounting
+  `CostsTab` triggers its lock-any-paid-but-unlocked-line pass (FX fetches +
+  DB writes), so this avoids doing that for every trip on every visit, not
+  just the ones actually being reviewed. Reuses `CostsTab` per trip rather
+  than duplicating the Paid/Outstanding/Grand-total rendering — one component,
+  used both per-trip (in `TripDetail`) and across all trips (here).
+  **Receipt photo upload**: `CostsTab` now takes a `tripId` prop and a
+  "📷 Add receipt" button per cost line, using the existing
+  `uploadDocumentFile()`/`createDocument()` (type `receipt`, attached to the
+  underlying booking/itinerary item) — the same infrastructure the
+  Upload page and `AttachedItems` already use, so an uploaded receipt shows
+  up everywhere those already surface attachments (the Documents tab's
+  attachment groups, the booking/itinerary card itself). This page doesn't
+  build its own receipts gallery on top of that.
+
 ## Ready to build / open items
 
 - The installable icon is SVG-only (see above) — a real PNG icon set is a good

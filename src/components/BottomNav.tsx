@@ -33,6 +33,10 @@ export function BottomNav() {
         <span className="text-xl">🔗</span>
         Link
       </NavLink>
+      <NavLink to="/costs" className={linkClass}>
+        <span className="text-xl">💰</span>
+        Costs
+      </NavLink>
       <NavLink to="/settings" className={linkClass}>
         <span className="text-xl">⚙️</span>
         Settings

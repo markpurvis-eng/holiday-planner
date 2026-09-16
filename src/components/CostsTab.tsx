@@ -1,19 +1,31 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Booking, ItineraryItem } from '../lib/types'
 import { buildCostLines, ensureLockedRates, setManualRate } from '../lib/costs'
 import type { CostLine } from '../lib/costs'
 import { fetchGbpRate } from '../lib/fx'
 import { formatMoney } from '../lib/format'
+import { uploadDocumentFile, createDocument } from '../lib/api'
 import { LoadingSpinner } from './LoadingSpinner'
 import { PaymentBadge } from './PaymentBadge'
 
-export function CostsTab({ bookings, itinerary }: { bookings: Booking[]; itinerary: ItineraryItem[] }) {
+export function CostsTab({
+  tripId,
+  bookings,
+  itinerary,
+}: {
+  tripId: string
+  bookings: Booking[]
+  itinerary: ItineraryItem[]
+}) {
   const [lines, setLines] = useState<CostLine[] | null>(null)
   const [liveRates, setLiveRates] = useState<Map<string, number>>(new Map())
   const [error, setError] = useState(false)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [receiptStatus, setReceiptStatus] = useState<Map<string, 'uploading' | 'done' | 'error'>>(new Map())
+  const pendingReceiptLine = useRef<CostLine | null>(null)
+  const receiptInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -83,6 +95,33 @@ export function CostsTab({ bookings, itinerary }: { bookings: Booking[]; itinera
     }
   }
 
+  function handleAttachReceiptClick(line: CostLine) {
+    pendingReceiptLine.current = line
+    receiptInputRef.current?.click()
+  }
+
+  async function handleReceiptFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    const line = pendingReceiptLine.current
+    e.target.value = ''
+    if (!file || !line) return
+
+    setReceiptStatus((prev) => new Map(prev).set(line.key, 'uploading'))
+    try {
+      const fileUrl = await uploadDocumentFile(file)
+      await createDocument({
+        type: 'receipt',
+        file_url: fileUrl,
+        trip_id: tripId,
+        booking_id: line.kind === 'booking' ? line.id : null,
+        itinerary_item_id: line.kind === 'itinerary_item' ? line.id : null,
+      })
+      setReceiptStatus((prev) => new Map(prev).set(line.key, 'done'))
+    } catch {
+      setReceiptStatus((prev) => new Map(prev).set(line.key, 'error'))
+    }
+  }
+
   if (error) {
     return (
       <p className="rounded-2xl bg-white p-4 text-sm text-stone-500 shadow-sm ring-1 ring-stone-100">
@@ -111,6 +150,7 @@ export function CostsTab({ bookings, itinerary }: { bookings: Booking[]; itinera
   function renderLine(line: CostLine) {
     const { value, locked } = gbpValue(line)
     const isEditing = editingKey === line.key
+    const receiptState = receiptStatus.get(line.key)
     return (
       <div key={line.key} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100">
         <div className="flex items-start justify-between gap-3">
@@ -166,12 +206,36 @@ export function CostsTab({ bookings, itinerary }: { bookings: Booking[]; itinera
             {formatMoney(value, 'GBP')}
           </p>
         </div>
+        <div className="mt-2 flex items-center justify-end">
+          {receiptState === 'uploading' && <span className="text-xs text-stone-400">Uploading…</span>}
+          {receiptState === 'done' && <span className="text-xs text-emerald-600">Receipt attached ✓</span>}
+          {receiptState === 'error' && (
+            <span className="text-xs text-red-500">Upload failed — try again</span>
+          )}
+          {receiptState !== 'uploading' && (
+            <button
+              type="button"
+              onClick={() => handleAttachReceiptClick(line)}
+              className="ml-3 text-xs text-stone-400 hover:text-teal-600"
+            >
+              📷 Add receipt
+            </button>
+          )}
+        </div>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
+      <input
+        ref={receiptInputRef}
+        type="file"
+        accept="image/*,application/pdf"
+        capture="environment"
+        className="hidden"
+        onChange={handleReceiptFileChange}
+      />
       <div className="space-y-3">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-400">
           Paid ({formatMoney(paidTotal, 'GBP')})

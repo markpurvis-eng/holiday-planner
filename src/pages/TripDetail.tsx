@@ -502,7 +502,7 @@ export default function TripDetail() {
           </>
         )}
 
-        {tab === 'costs' && <CostsTab bookings={bookings} itinerary={itinerary} />}
+        {tab === 'costs' && <CostsTab tripId={trip.id} bookings={bookings} itinerary={itinerary} />}
 
         {tab === 'todos' && (
           <>
