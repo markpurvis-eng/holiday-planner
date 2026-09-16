@@ -231,6 +231,24 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   one thing that was reported. Receipt upload stays enabled either way,
   since it doesn't affect the total. `AllCosts.tsx`'s collapsed trip row
   also shows the locked total next to the status, matching `TripCard`.
+  **Bundling small ad hoc items**: `costs.ts`'s `groupCostLines()` is a
+  pure display transform on top of the flat `CostLine[]` — it doesn't
+  change what Paid/Outstanding/Grand total sum over, only how the Costs
+  tab renders it. An expense attached to a booking/itinerary item nests
+  under that line's own card as a collapsible "Ad hoc items" sub-total;
+  every trip-level expense (attached to neither) collects into one
+  collapsible "🧾 Ad hoc expenses" bundle card instead of N flat rows.
+  Receipt uploads for an attached expense now go to that same
+  booking/itinerary item (via the expense's own `attachedBookingId`/
+  `attachedItineraryItemId`), not a trip-level fallback — a fix that fell
+  out of already having that data on hand for the grouping, resolving the
+  imprecision flagged when receipt upload was first added. **Zero-cost
+  backfill**: if an expense attaches to a booking/itinerary item with no
+  cost of its own (e.g. tipping the guide on a free walking tour),
+  `AddExpense.tsx` gives that line a nominal `cost: 0, currency: 'GBP',
+  payment_status: 'paid'` (rate pre-locked to 1) before creating the
+  expense — otherwise there'd be no card for it to nest under, since the
+  Costs tab only shows cost-bearing lines.
 
 ## Ready to build / open items
 

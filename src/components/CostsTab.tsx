@@ -1,8 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Booking, ItineraryItem } from '../lib/types'
-import { buildCostLines, buildExpenseCostLines, ensureLockedRates, setManualRate, deleteExpenseLine } from '../lib/costs'
-import type { CostLine } from '../lib/costs'
+import {
+  buildCostLines,
+  buildExpenseCostLines,
+  ensureLockedRates,
+  setManualRate,
+  deleteExpenseLine,
+  groupCostLines,
+} from '../lib/costs'
+import type { CostLine, CostRow } from '../lib/costs'
 import { fetchGbpRate } from '../lib/fx'
 import { formatMoney } from '../lib/format'
 import { uploadDocumentFile, createDocument, getExpenses } from '../lib/api'
@@ -27,8 +34,21 @@ export function CostsTab({
   const [editValue, setEditValue] = useState('')
   const [savingKey, setSavingKey] = useState<string | null>(null)
   const [receiptStatus, setReceiptStatus] = useState<Map<string, 'uploading' | 'done' | 'error'>>(new Map())
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
   const pendingReceiptLine = useRef<CostLine | null>(null)
   const receiptInputRef = useRef<HTMLInputElement>(null)
+
+  function toggleExpanded(key: string) {
+    setExpandedKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -123,12 +143,20 @@ export function CostsTab({
     setReceiptStatus((prev) => new Map(prev).set(line.key, 'uploading'))
     try {
       const fileUrl = await uploadDocumentFile(file)
+      const bookingId =
+        line.kind === 'booking' ? line.id : line.kind === 'expense' ? line.attachedBookingId ?? null : null
+      const itineraryItemId =
+        line.kind === 'itinerary_item'
+          ? line.id
+          : line.kind === 'expense'
+            ? line.attachedItineraryItemId ?? null
+            : null
       await createDocument({
         type: 'receipt',
         file_url: fileUrl,
         trip_id: tripId,
-        booking_id: line.kind === 'booking' ? line.id : null,
-        itinerary_item_id: line.kind === 'itinerary_item' ? line.id : null,
+        booking_id: bookingId,
+        itinerary_item_id: itineraryItemId,
       })
       setReceiptStatus((prev) => new Map(prev).set(line.key, 'done'))
     } catch {
@@ -170,6 +198,15 @@ export function CostsTab({
   const outstanding = lines.filter((l) => l.paymentStatus !== 'paid')
   const paidTotal = paid.reduce((sum, l) => sum + gbpValue(l).value, 0)
   const outstandingTotal = outstanding.reduce((sum, l) => sum + gbpValue(l).value, 0)
+
+  // Grouping is purely a display transform on top of the same flat
+  // `lines` — it doesn't change paidTotal/outstandingTotal above, which
+  // are still summed over every individual line regardless of how this
+  // bundles them for rendering. An expense bundle is always "paid" (every
+  // expense in it is), so it only ever appears in the Paid section.
+  const rows = groupCostLines(lines)
+  const paidRows = rows.filter((r) => r.kind === 'expenseBundle' || r.line.paymentStatus === 'paid')
+  const outstandingRows = rows.filter((r) => r.kind === 'line' && r.line.paymentStatus !== 'paid')
 
   function renderLine(line: CostLine) {
     const { value, locked: rateLocked } = gbpValue(line)
@@ -268,6 +305,67 @@ export function CostsTab({
     )
   }
 
+  function renderNestedGroup(key: string, label: string, nestedLines: CostLine[]) {
+    const total = nestedLines.reduce((sum, l) => sum + gbpValue(l).value, 0)
+    const isOpen = expandedKeys.has(key)
+    return (
+      <div key={key} className="mt-2 border-t border-stone-100 pt-2">
+        <button
+          type="button"
+          onClick={() => toggleExpanded(key)}
+          className="flex w-full items-center justify-between text-xs text-stone-500 hover:text-teal-600"
+        >
+          <span>
+            {isOpen ? '▲' : '▼'} {label} ({nestedLines.length})
+          </span>
+          <span>{formatMoney(total, 'GBP')}</span>
+        </button>
+        {isOpen && <div className="mt-2 space-y-2 pl-3">{nestedLines.map(renderLine)}</div>}
+      </div>
+    )
+  }
+
+  function renderBundleCard(key: string, label: string, bundleLines: CostLine[]) {
+    const total = bundleLines.reduce((sum, l) => sum + gbpValue(l).value, 0)
+    const isOpen = expandedKeys.has(key)
+    return (
+      <div key={key} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100">
+        <button
+          type="button"
+          onClick={() => toggleExpanded(key)}
+          className="flex w-full items-center justify-between"
+        >
+          <span className="font-medium text-stone-800">
+            🧾 {label} ({bundleLines.length})
+          </span>
+          <span className="flex items-center gap-2 text-sm font-medium text-stone-700">
+            {formatMoney(total, 'GBP')}
+            <span className="text-stone-400">{isOpen ? '▲' : '▼'}</span>
+          </span>
+        </button>
+        {isOpen && (
+          <div className="mt-3 space-y-2 border-t border-stone-100 pt-3">{bundleLines.map(renderLine)}</div>
+        )}
+      </div>
+    )
+  }
+
+  function renderRow(row: CostRow) {
+    if (row.kind === 'expenseBundle') {
+      return renderBundleCard(row.key, row.label, row.lines)
+    }
+    return (
+      <div key={row.line.key}>
+        {renderLine(row.line)}
+        {row.nested.length > 0 && (
+          <div className="rounded-b-2xl bg-white px-4 pb-3 shadow-sm ring-1 ring-stone-100">
+            {renderNestedGroup(`${row.line.key}-adhoc`, 'Ad hoc items', row.nested)}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <input
@@ -294,10 +392,10 @@ export function CostsTab({
         <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-400">
           Paid ({formatMoney(paidTotal, 'GBP')})
         </h3>
-        {paid.length === 0 ? (
+        {paidRows.length === 0 ? (
           <p className="text-sm text-stone-400">Nothing paid yet.</p>
         ) : (
-          <div className="space-y-2">{paid.map(renderLine)}</div>
+          <div className="space-y-2">{paidRows.map(renderRow)}</div>
         )}
       </div>
 
@@ -305,10 +403,10 @@ export function CostsTab({
         <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-400">
           Outstanding (≈ {formatMoney(outstandingTotal, 'GBP')})
         </h3>
-        {outstanding.length === 0 ? (
+        {outstandingRows.length === 0 ? (
           <p className="text-sm text-stone-400">Nothing outstanding.</p>
         ) : (
-          <div className="space-y-2">{outstanding.map(renderLine)}</div>
+          <div className="space-y-2">{outstandingRows.map(renderRow)}</div>
         )}
       </div>
 

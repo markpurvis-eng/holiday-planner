@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { getTrips, getBookings, getItinerary, createExpense } from '../lib/api'
+import { getTrips, getBookings, getItinerary, createExpense, updateBooking, updateItineraryItem } from '../lib/api'
 import { fetchGbpRate } from '../lib/fx'
 import type { Booking, ItineraryItem, Trip } from '../lib/types'
 import { formatDate, daysUntil, todayDateString } from '../lib/format'
@@ -65,6 +65,37 @@ export default function AddExpense() {
     setSaving(true)
     setError(false)
     try {
+      // If this expense attaches to a booking/itinerary item that has no
+      // cost of its own (e.g. a free walking tour you still tip the guide
+      // on), give it a nominal £0.00 cost first. The Costs tab only shows
+      // a card for cost-bearing lines, so without this an attached ad hoc
+      // expense would have nothing to nest under. Zero cost is inherently
+      // "settled", so it's marked paid too - GBP is arbitrary but harmless
+      // (0 in any currency is 0 GBP; the point is just to create a line).
+      if (attachMode === 'booking' && bookingId) {
+        const booking = bookings.find((b) => b.id === bookingId)
+        if (booking && booking.cost == null) {
+          await updateBooking(bookingId, {
+            cost: 0,
+            currency: 'GBP',
+            payment_status: 'paid',
+            fx_rate_to_gbp: 1,
+            fx_rate_locked_at: new Date().toISOString(),
+          })
+        }
+      } else if (attachMode === 'itinerary' && itineraryItemId) {
+        const item = itineraryItems.find((i) => i.id === itineraryItemId)
+        if (item && item.cost == null) {
+          await updateItineraryItem(itineraryItemId, {
+            cost: 0,
+            currency: 'GBP',
+            payment_status: 'paid',
+            fx_rate_to_gbp: 1,
+            fx_rate_locked_at: new Date().toISOString(),
+          })
+        }
+      }
+
       // Recorded after the fact - lock the FX rate right at entry, same as
       // any other cost line that's already paid, rather than leaving it
       // to be picked up later.

@@ -12,6 +12,12 @@ export type CostLine = {
   paymentStatus: PaymentStatus
   fxRateToGbp: number | null
   fxRateLockedAt: string | null
+  // Only meaningful for kind === 'expense' — which booking/itinerary item
+  // (if any) it's attached to, so the display layer can nest it under
+  // that line's card instead of always showing it flat. Both null means
+  // trip-level.
+  attachedBookingId?: string | null
+  attachedItineraryItemId?: string | null
 }
 
 // Only cost-bearing, non-cancelled bookings/itinerary items count towards
@@ -66,6 +72,8 @@ export function buildExpenseCostLines(expenses: Expense[]): CostLine[] {
     paymentStatus: 'paid',
     fxRateToGbp: e.fx_rate_to_gbp,
     fxRateLockedAt: e.fx_rate_locked_at,
+    attachedBookingId: e.booking_id,
+    attachedItineraryItemId: e.itinerary_item_id,
   }))
 }
 
@@ -128,4 +136,61 @@ export async function setManualRate(line: CostLine, rate: number): Promise<{ rat
 export async function deleteExpenseLine(line: CostLine): Promise<void> {
   if (line.kind !== 'expense') return
   await deleteExpense(line.id)
+}
+
+// --- Display grouping (bundling small ad hoc items) -----------------------
+// A trip can accumulate many small ad hoc expenses (tips, souvenirs,
+// taxis...) that would otherwise take up more space than the actual
+// booking/flight/hotel lines they're attached to. This groups
+// the flat CostLine[] into what the Costs tab actually renders: each
+// booking/itinerary line as its own row (unchanged), with any ad hoc
+// expenses attached specifically to it nested underneath as a collapsible
+// sub-total; and every trip-level ad hoc expense (attached to neither)
+// collected into one collapsible bundle card. Purely a display transform —
+// it doesn't change what counts towards Paid/Outstanding/Grand total,
+// which are still summed over every individual CostLine regardless of how
+// this groups them for rendering.
+
+export type CostRow =
+  | { kind: 'line'; line: CostLine; nested: CostLine[] }
+  | { kind: 'expenseBundle'; key: string; label: string; lines: CostLine[] }
+
+export function groupCostLines(lines: CostLine[]): CostRow[] {
+  const primary = lines.filter((l) => l.kind !== 'expense')
+  const expenses = lines.filter((l) => l.kind === 'expense')
+
+  const nestedByParentKey = new Map<string, CostLine[]>()
+  const tripLevel: CostLine[] = []
+
+  for (const e of expenses) {
+    const parentKey = e.attachedBookingId
+      ? `booking-${e.attachedBookingId}`
+      : e.attachedItineraryItemId
+        ? `itinerary_item-${e.attachedItineraryItemId}`
+        : null
+    if (parentKey) {
+      const list = nestedByParentKey.get(parentKey) ?? []
+      list.push(e)
+      nestedByParentKey.set(parentKey, list)
+    } else {
+      tripLevel.push(e)
+    }
+  }
+
+  const rows: CostRow[] = primary.map((line) => ({
+    kind: 'line',
+    line,
+    nested: nestedByParentKey.get(line.key) ?? [],
+  }))
+
+  if (tripLevel.length > 0) {
+    rows.push({
+      kind: 'expenseBundle',
+      key: 'trip-level-expenses',
+      label: 'Ad hoc expenses',
+      lines: tripLevel,
+    })
+  }
+
+  return rows
 }
