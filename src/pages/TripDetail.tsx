@@ -502,7 +502,14 @@ export default function TripDetail() {
           </>
         )}
 
-        {tab === 'costs' && <CostsTab tripId={trip.id} bookings={bookings} itinerary={itinerary} />}
+        {tab === 'costs' && (
+          <CostsTab
+            tripId={trip.id}
+            bookings={bookings}
+            itinerary={itinerary}
+            locked={trip.total_cost_locked_at != null}
+          />
+        )}
 
         {tab === 'todos' && (
           <>

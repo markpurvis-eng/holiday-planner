@@ -3,6 +3,7 @@ import { getTrips, getBookings, getItinerary } from '../lib/api'
 import type { Trip, Booking, ItineraryItem } from '../lib/types'
 import { CostsTab } from '../components/CostsTab'
 import { LoadingSpinner } from '../components/LoadingSpinner'
+import { formatMoney } from '../lib/format'
 
 type TripCostData = { trip: Trip; bookings: Booking[]; itinerary: ItineraryItem[] }
 
@@ -75,7 +76,10 @@ export default function AllCosts() {
               >
                 <div>
                   <p className="font-medium text-stone-800">{trip.name}</p>
-                  <p className="text-xs text-stone-400">{trip.status}</p>
+                  <p className="text-xs text-stone-400">
+                    {trip.status}
+                    {trip.total_cost_gbp != null && ` · Total: ${formatMoney(trip.total_cost_gbp, 'GBP')}`}
+                  </p>
                 </div>
                 <span className="text-stone-400">{isOpen ? '▲' : '▼'}</span>
               </button>
@@ -87,7 +91,12 @@ export default function AllCosts() {
                   ones actually being reviewed. */}
               {isOpen && (
                 <div className="border-t border-stone-100 p-4">
-                  <CostsTab tripId={trip.id} bookings={bookings} itinerary={itinerary} />
+                  <CostsTab
+                    tripId={trip.id}
+                    bookings={bookings}
+                    itinerary={itinerary}
+                    locked={trip.total_cost_locked_at != null}
+                  />
                 </div>
               )}
             </div>

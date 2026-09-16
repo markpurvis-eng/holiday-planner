@@ -13,10 +13,12 @@ export function CostsTab({
   tripId,
   bookings,
   itinerary,
+  locked = false,
 }: {
   tripId: string
   bookings: Booking[]
   itinerary: ItineraryItem[]
+  locked?: boolean
 }) {
   const [lines, setLines] = useState<CostLine[] | null>(null)
   const [liveRates, setLiveRates] = useState<Map<string, number>>(new Map())
@@ -152,12 +154,14 @@ export function CostsTab({
         <p className="rounded-2xl bg-white p-4 text-sm text-stone-500 shadow-sm ring-1 ring-stone-100">
           No costed bookings, itinerary items, or expenses yet.
         </p>
-        <Link
-          to={`/add-expense?trip=${tripId}`}
-          className="block rounded-2xl bg-teal-50 p-3 text-center text-sm font-medium text-teal-700 hover:bg-teal-100"
-        >
-          + Add an ad hoc expense
-        </Link>
+        {!locked && (
+          <Link
+            to={`/add-expense?trip=${tripId}`}
+            className="block rounded-2xl bg-teal-50 p-3 text-center text-sm font-medium text-teal-700 hover:bg-teal-100"
+          >
+            + Add an ad hoc expense
+          </Link>
+        )}
       </div>
     )
   }
@@ -168,7 +172,7 @@ export function CostsTab({
   const outstandingTotal = outstanding.reduce((sum, l) => sum + gbpValue(l).value, 0)
 
   function renderLine(line: CostLine) {
-    const { value, locked } = gbpValue(line)
+    const { value, locked: rateLocked } = gbpValue(line)
     const isEditing = editingKey === line.key
     const receiptState = receiptStatus.get(line.key)
     return (
@@ -216,6 +220,10 @@ export function CostsTab({
                 Cancel
               </button>
             </div>
+          ) : locked ? (
+            <span className="text-xs text-stone-400">
+              rate: {line.currency === 'GBP' ? '1.0000' : (line.fxRateToGbp ?? liveRates.get(line.currency))?.toFixed(4)}
+            </span>
           ) : (
             <button
               type="button"
@@ -227,7 +235,7 @@ export function CostsTab({
             </button>
           )}
           <p className="text-sm font-medium text-stone-700">
-            {locked ? '' : '≈ '}
+            {rateLocked ? '' : '≈ '}
             {formatMoney(value, 'GBP')}
           </p>
         </div>
@@ -246,7 +254,7 @@ export function CostsTab({
               📷 Add receipt
             </button>
           )}
-          {line.kind === 'expense' && (
+          {line.kind === 'expense' && !locked && (
             <button
               type="button"
               onClick={() => handleDeleteExpense(line)}
@@ -270,12 +278,18 @@ export function CostsTab({
         className="hidden"
         onChange={handleReceiptFileChange}
       />
-      <Link
-        to={`/add-expense?trip=${tripId}`}
-        className="block rounded-2xl bg-teal-50 p-3 text-center text-sm font-medium text-teal-700 hover:bg-teal-100"
-      >
-        + Add an ad hoc expense
-      </Link>
+      {locked ? (
+        <p className="rounded-2xl bg-stone-100 p-3 text-center text-sm text-stone-500">
+          🔒 This trip's total is locked in — costs are read-only.
+        </p>
+      ) : (
+        <Link
+          to={`/add-expense?trip=${tripId}`}
+          className="block rounded-2xl bg-teal-50 p-3 text-center text-sm font-medium text-teal-700 hover:bg-teal-100"
+        >
+          + Add an ad hoc expense
+        </Link>
+      )}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-400">
           Paid ({formatMoney(paidTotal, 'GBP')})

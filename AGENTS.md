@@ -222,7 +222,15 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
      `trip.status = 'past'` if it isn't already.
   If an expense gets added to an already-locked trip later, redo this same
   check-and-lock pass for that trip rather than leaving the cached total
-  stale.
+  stale. **`CostsTab` takes a `locked` prop** (passed as
+  `trip.total_cost_locked_at != null` from both `TripDetail` and
+  `AllCosts`) that makes the whole tab read-only once true: hides "+ Add an
+  ad hoc expense", hides the Delete button on expense lines, and replaces
+  the per-line rate-edit affordance with plain read-only text — anything
+  that could silently change the cached total is disabled, not just the
+  one thing that was reported. Receipt upload stays enabled either way,
+  since it doesn't affect the total. `AllCosts.tsx`'s collapsed trip row
+  also shows the locked total next to the status, matching `TripCard`.
 
 ## Ready to build / open items
 
