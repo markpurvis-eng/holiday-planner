@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import {
@@ -55,6 +55,7 @@ export default function TripDetail() {
   const [todos, setTodos] = useState<Todo[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>(initialTab)
+  const autoScrolledTabRef = useRef<Tab | null>(null)
   const [newTodo, setNewTodo] = useState('')
   const [hideCancelled] = useState(() => getHideCancelledItems())
   const [tripHeaderExpanded, setTripHeaderExpanded] = useState(false)
@@ -117,12 +118,30 @@ export default function TripDetail() {
   // scrollable down. Both lists come sorted ascending by date already
   // (getBookings/getItinerary), so this is just "first item today or
   // later". Skipped when a highlight target is already driving the scroll
-  // (arriving from Upload/Add Link) — that's the more specific destination.
-  // Only depends on tab and the raw data (not the filtered visible lists),
-  // so toggling the payment filter doesn't re-trigger it.
+  // (arriving from Upload/Add Link, or a "View →" jump from Documents/
+  // Itinerary) — that's the more specific destination.
+  //
+  // autoScrolledTabRef makes this a one-shot decision per tab *visit*
+  // rather than something that re-evaluates on every render: highlightId
+  // is deliberately left out of the dependency array below. The earlier
+  // version depended on it directly, which caused a real bug — the
+  // highlight-clearing timeout above removes `highlight` from the URL
+  // after 2.5s, which changed highlightId from a value to null, which
+  // re-ran this effect, which then (correctly, by its own logic, but
+  // wrongly in effect) auto-scrolled to today's item a few seconds after
+  // a highlighted arrival had already placed the scroll deliberately.
+  // Reading highlightId inside the effect without depending on it means
+  // the decision is made once, at the moment the tab actually becomes
+  // active, and never revisited just because the highlight later clears.
   useEffect(() => {
-    if (loading || highlightId) return
-    if (tab !== 'bookings' && tab !== 'itinerary') return
+    if (tab !== 'bookings' && tab !== 'itinerary') {
+      autoScrolledTabRef.current = null
+      return
+    }
+    if (loading) return
+    if (autoScrolledTabRef.current === tab) return
+    autoScrolledTabRef.current = tab
+    if (highlightId) return
     const todayStr = todayDateString()
     const targetId =
       tab === 'itinerary'
@@ -130,7 +149,8 @@ export default function TripDetail() {
         : bookings.find((b) => (b.end_date ?? b.start_date ?? '') >= todayStr)?.id
     if (!targetId) return
     scrollToItem(targetId, 'auto')
-  }, [tab, loading, highlightId, itinerary, bookings])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, loading, itinerary, bookings])
 
   async function handleAddTodo(e: FormEvent) {
     e.preventDefault()
