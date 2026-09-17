@@ -288,6 +288,20 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   their origin and purpose are unknown. Ask Mark before relying on or
   removing them.
 
+- **Collapsible "details" text on Booking/Itinerary cards**: `expandedDetails`
+  (a `Set<string>` keyed by booking/itinerary_item id — both are UUIDs from
+  separate tables, so one Set safely covers either) tracks which cards have
+  their free-text details expanded, defaulting to collapsed. Booking's
+  `check_in_details` can run several lines, which was making every card
+  that long regardless of whether the person wanted to read it right then.
+  **Also surfaced `itinerary_item.status` for the first time** with the
+  same toggle — that column existed in the data but was never rendered
+  anywhere before this. Plain conditional rendering, no animation — a
+  deliberately simpler mechanism than the auto-hiding-header attempt
+  (tried and reverted, see the roadmap doc), since a card either shows its
+  details paragraph or doesn't, with nothing to get wrong about scroll
+  position or layout height in between.
+
 ## Ready to build / open items
 
 - The installable icon is SVG-only (see above) — a real PNG icon set is a good

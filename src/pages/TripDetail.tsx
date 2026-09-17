@@ -60,6 +60,25 @@ export default function TripDetail() {
   const [hideCancelled] = useState(() => getHideCancelledItems())
   const [tripHeaderExpanded, setTripHeaderExpanded] = useState(false)
   const [paymentFilters, setPaymentFilters] = useState<Set<Booking['payment_status']>>(new Set())
+  // Tracks which booking/itinerary_item cards have their free-text
+  // details expanded. Booking and itinerary_item ids are both UUIDs
+  // from separate tables, so one Set can key on either without
+  // collision risk. Collapsed by default, since check_in_details in
+  // particular can run several lines and was making every card that
+  // long regardless of whether the person wanted to read it right then.
+  const [expandedDetails, setExpandedDetails] = useState<Set<string>>(new Set())
+
+  function toggleDetails(id: string) {
+    setExpandedDetails((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
 
   // Toggles one status in/out of the payment filter set — e.g. Unpaid and
   // Partially paid can both be active at once. An empty set means no
@@ -350,9 +369,20 @@ export default function TripDetail() {
                   <p className="text-sm text-stone-500">{formatMoney(b.cost, b.currency)}</p>
                 )}
                 {b.check_in_details && (
-                  <p className="mt-2 whitespace-pre-wrap text-sm text-stone-600">
-                    {b.check_in_details}
-                  </p>
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleDetails(b.id)}
+                      className="text-xs font-medium text-teal-600 hover:text-teal-700"
+                    >
+                      {expandedDetails.has(b.id) ? 'Hide details ▲' : 'Show details ▼'}
+                    </button>
+                    {expandedDetails.has(b.id) && (
+                      <p className="mt-1 whitespace-pre-wrap text-sm text-stone-600">
+                        {b.check_in_details}
+                      </p>
+                    )}
+                  </div>
                 )}
                 <AttachedItems
                   documents={documents.filter((d) => d.booking_id === b.id)}
@@ -435,6 +465,20 @@ export default function TripDetail() {
                       <div className="mt-0.5 flex items-center gap-2">
                         <p className="text-sm text-stone-500">{formatMoney(item.cost, item.currency)}</p>
                         <PaymentBadge status={item.payment_status} />
+                      </div>
+                    )}
+                    {item.status && (
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleDetails(item.id)}
+                          className="text-xs font-medium text-teal-600 hover:text-teal-700"
+                        >
+                          {expandedDetails.has(item.id) ? 'Hide details ▲' : 'Show details ▼'}
+                        </button>
+                        {expandedDetails.has(item.id) && (
+                          <p className="mt-1 whitespace-pre-wrap text-sm text-stone-600">{item.status}</p>
+                        )}
                       </div>
                     )}
                     <AttachedItems
