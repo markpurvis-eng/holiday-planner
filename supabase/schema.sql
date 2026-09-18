@@ -69,7 +69,10 @@ create table if not exists booking (
   -- rows and the common case both work without extra input.
   currency text default 'GBP',
   payment_status text not null default 'unpaid' check (payment_status in ('unpaid', 'partially_paid', 'paid')),
-  check_in_details text,
+  -- Renamed from check_in_details (16 Sep 2026) for clearer provenance:
+  -- this holds text extracted from a confirmation/source document, not
+  -- anything Mark writes himself -- see notes below for that.
+  extracted_details text,
   created_at timestamptz not null default now()
 );
 
@@ -100,6 +103,12 @@ alter table booking add column if not exists end_time time;
 alter table booking add column if not exists fx_rate_to_gbp numeric;
 alter table booking add column if not exists fx_rate_locked_at timestamptz;
 
+-- Ad hoc personal notes, kept deliberately separate from
+-- extracted_details above -- a future automated re-extraction (see the
+-- Gmail/Drive ingestion design) can safely overwrite extracted_details
+-- without ever risking a note Mark wrote himself.
+alter table booking add column if not exists notes text;
+
 -- --- payment -------------------------------------------------------------
 
 create table if not exists payment (
@@ -122,7 +131,9 @@ create table if not exists itinerary_item (
   time time,
   venue text,
   reference text,
-  status text,
+  -- Renamed from status (16 Sep 2026), same reasoning as
+  -- booking.extracted_details above.
+  extracted_details text,
   created_at timestamptz not null default now(),
   -- Added after initial release: tours/dining/transport items often have
   -- their own cost (a tour deposit, a table fee) worth tracking alongside
@@ -154,6 +165,9 @@ alter table itinerary_item add column if not exists destination_lng numeric;
 -- Costs tab, GBP roll-up -- same reasoning as booking.fx_rate_* above.
 alter table itinerary_item add column if not exists fx_rate_to_gbp numeric;
 alter table itinerary_item add column if not exists fx_rate_locked_at timestamptz;
+
+-- Same reasoning as booking.notes above.
+alter table itinerary_item add column if not exists notes text;
 
 -- --- expense -----------------------------------------------------------
 -- Ad hoc payments made during a trip (tips, souvenirs, taxis, etc.) --

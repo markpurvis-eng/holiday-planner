@@ -39,7 +39,8 @@ export type Booking = {
   cost: number | null
   currency: string | null
   payment_status: PaymentStatus
-  check_in_details: string | null
+  extracted_details: string | null
+  notes: string | null
   cancelled: boolean
   created_at: string
   destination_name: string | null
@@ -81,7 +82,8 @@ export type ItineraryItem = {
   time: string | null
   venue: string | null
   reference: string | null
-  status: string | null
+  extracted_details: string | null
+  notes: string | null
   cancelled: boolean
   cost: number | null
   currency: string | null

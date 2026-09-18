@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams, Link } from 'react-router-dom'
 import {
   getTrip,
   getBookings,
@@ -63,7 +63,7 @@ export default function TripDetail() {
   // Tracks which booking/itinerary_item cards have their free-text
   // details expanded. Booking and itinerary_item ids are both UUIDs
   // from separate tables, so one Set can key on either without
-  // collision risk. Collapsed by default, since check_in_details in
+  // collision risk. Collapsed by default, since extracted_details in
   // particular can run several lines and was making every card that
   // long regardless of whether the person wanted to read it right then.
   const [expandedDetails, setExpandedDetails] = useState<Set<string>>(new Set())
@@ -368,7 +368,7 @@ export default function TripDetail() {
                 {b.cost != null && (
                   <p className="text-sm text-stone-500">{formatMoney(b.cost, b.currency)}</p>
                 )}
-                {b.check_in_details && (
+                {(b.extracted_details || b.notes) && (
                   <div className="mt-2">
                     <button
                       type="button"
@@ -378,9 +378,21 @@ export default function TripDetail() {
                       {expandedDetails.has(b.id) ? 'Hide details ▲' : 'Show details ▼'}
                     </button>
                     {expandedDetails.has(b.id) && (
-                      <p className="mt-1 whitespace-pre-wrap text-sm text-stone-600">
-                        {b.check_in_details}
-                      </p>
+                      <>
+                        {b.extracted_details && (
+                          <p className="mt-1 whitespace-pre-wrap text-sm text-stone-600">
+                            {b.extracted_details}
+                          </p>
+                        )}
+                        {b.notes && (
+                          <div className="mt-2">
+                            <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
+                              Notes
+                            </p>
+                            <p className="mt-0.5 whitespace-pre-wrap text-sm text-stone-600">{b.notes}</p>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -388,6 +400,14 @@ export default function TripDetail() {
                   documents={documents.filter((d) => d.booking_id === b.id)}
                   links={links.filter((l) => l.booking_id === b.id)}
                 />
+                <div className="mt-2 flex justify-end">
+                  <Link
+                    to={`/edit-booking?id=${b.id}${id ? `&trip=${id}` : ''}`}
+                    className="text-xs font-medium text-teal-600 hover:text-teal-700"
+                  >
+                    Edit
+                  </Link>
+                </div>
               </div>
             ))}
           </>
@@ -467,7 +487,7 @@ export default function TripDetail() {
                         <PaymentBadge status={item.payment_status} />
                       </div>
                     )}
-                    {item.status && (
+                    {(item.extracted_details || item.notes) && (
                       <div className="mt-2">
                         <button
                           type="button"
@@ -477,7 +497,23 @@ export default function TripDetail() {
                           {expandedDetails.has(item.id) ? 'Hide details ▲' : 'Show details ▼'}
                         </button>
                         {expandedDetails.has(item.id) && (
-                          <p className="mt-1 whitespace-pre-wrap text-sm text-stone-600">{item.status}</p>
+                          <>
+                            {item.extracted_details && (
+                              <p className="mt-1 whitespace-pre-wrap text-sm text-stone-600">
+                                {item.extracted_details}
+                              </p>
+                            )}
+                            {item.notes && (
+                              <div className="mt-2">
+                                <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
+                                  Notes
+                                </p>
+                                <p className="mt-0.5 whitespace-pre-wrap text-sm text-stone-600">
+                                  {item.notes}
+                                </p>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     )}
@@ -485,6 +521,14 @@ export default function TripDetail() {
                       documents={documents.filter((d) => d.itinerary_item_id === item.id)}
                       links={links.filter((l) => l.itinerary_item_id === item.id)}
                     />
+                    <div className="mt-2 flex justify-end">
+                      <Link
+                        to={`/edit-itinerary-item?id=${item.id}${id ? `&trip=${id}` : ''}`}
+                        className="text-xs font-medium text-teal-600 hover:text-teal-700"
+                      >
+                        Edit
+                      </Link>
+                    </div>
                   </div>
                 </div>
               )

@@ -104,6 +104,12 @@ export async function getBookings(tripId: string): Promise<Booking[]> {
   return data ?? []
 }
 
+export async function getBooking(id: string): Promise<Booking | null> {
+  const { data, error } = await supabase.from('booking').select('*').eq('id', id).single()
+  if (error) throw error
+  return data
+}
+
 export async function createBooking(booking: Partial<Booking>): Promise<Booking> {
   const { data, error } = await supabase.from('booking').insert(booking).select().single()
   if (error) throw error
@@ -145,6 +151,12 @@ export async function getItinerary(tripId: string): Promise<ItineraryItem[]> {
     .order('time', { ascending: true })
   if (error) throw error
   return data ?? []
+}
+
+export async function getItineraryItem(id: string): Promise<ItineraryItem | null> {
+  const { data, error } = await supabase.from('itinerary_item').select('*').eq('id', id).single()
+  if (error) throw error
+  return data
 }
 
 export async function createItineraryItem(item: Partial<ItineraryItem>): Promise<ItineraryItem> {

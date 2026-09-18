@@ -88,8 +88,9 @@ function sanitizeForPdf(text: string): string {
 }
 
 // Builds the shared itinerary as a PDF Blob. Deliberately excludes cost,
-// currency, payment_status, reference/confirmation numbers, and
-// booking.check_in_details (free text, could contain anything sensitive) —
+// currency, payment_status, reference/confirmation numbers,
+// booking/itinerary_item.extracted_details (free text, could contain
+// anything sensitive), and notes (Mark's own personal annotations) —
 // only date/time/type/venue for itinerary items and provider name/dates/
 // destination for bookings are included. Cancelled itinerary items (and,
 // for consistency, cancelled bookings) are omitted entirely rather than

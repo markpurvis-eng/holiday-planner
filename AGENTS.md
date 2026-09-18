@@ -119,7 +119,7 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   for `documents`. `trip.public_itinerary_generated_at` (null until first
   generated) gates whether the Share button appears in `TripDetail.tsx`.
   Deliberately excluded from the PDF: cost, currency, payment_status,
-  reference/confirmation numbers, and `booking.check_in_details` (free text —
+  reference/confirmation numbers, and `booking.extracted_details` (free text —
   could contain anything). The Share button uses the Web Share API where
   available, falling back to copying the link to the clipboard.
   **Bundle-size note**: `jspdf`'s default ES bundle unconditionally pulls in
@@ -291,16 +291,53 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
 - **Collapsible "details" text on Booking/Itinerary cards**: `expandedDetails`
   (a `Set<string>` keyed by booking/itinerary_item id — both are UUIDs from
   separate tables, so one Set safely covers either) tracks which cards have
-  their free-text details expanded, defaulting to collapsed. Booking's
-  `check_in_details` can run several lines, which was making every card
-  that long regardless of whether the person wanted to read it right then.
-  **Also surfaced `itinerary_item.status` for the first time** with the
-  same toggle — that column existed in the data but was never rendered
-  anywhere before this. Plain conditional rendering, no animation — a
-  deliberately simpler mechanism than the auto-hiding-header attempt
-  (tried and reverted, see the roadmap doc), since a card either shows its
-  details paragraph or doesn't, with nothing to get wrong about scroll
-  position or layout height in between.
+  their free-text details expanded, defaulting to collapsed. `extracted_details`
+  can run several lines, which was making every card that long regardless
+  of whether the person wanted to read it right then. When expanded, shows
+  `extracted_details` followed by `notes` (see below) if present, with a
+  small "Notes" label between them so the two don't blend together.
+  **Also surfaced `itinerary_item.extracted_details` for the first time**
+  (renamed from `status` — see below) with the same toggle — that column
+  existed in the data but was never rendered anywhere before this. Plain
+  conditional rendering, no animation — a deliberately simpler mechanism
+  than the auto-hiding-header attempt (tried and reverted, see the roadmap
+  doc), since a card either shows its details paragraph or doesn't, with
+  nothing to get wrong about scroll position or layout height in between.
+
+- **`extracted_details` / `notes` split (renamed 16 Sep 2026)**: `booking`'s
+  former `check_in_details` and `itinerary_item`'s former `status` were both
+  renamed to `extracted_details`, for clearer provenance — this is text
+  extracted from a confirmation/source document, not anything Mark writes
+  himself. A separate, new `notes` column on each table holds personal
+  annotations. Kept deliberately apart rather than one shared field: the
+  Gmail/Drive ingestion design (see the roadmap doc, and
+  `Holiday_App_Architecture_Notes.md`) will eventually write freshly
+  re-extracted text straight into `extracted_details` — if a personal note
+  lived in the same field, that write would risk silently clobbering it.
+  `itinerary_item.status`'s original intent (it read more like a workflow
+  status than narrative text) is now moot, since it's the same field as
+  `extracted_details` and used the same way as booking's.
+
+- **Edit bookings/itinerary items**: `src/pages/EditBooking.tsx` and
+  `src/pages/EditItineraryItem.tsx` (routes `/edit-booking`, `/edit-itinerary-item`,
+  both `?id=<uuid>&trip=<tripId>`) are the first in-app way to change a
+  booking/itinerary item after creation — until now everything went in via
+  the retired Claude-for-Excel workflow or direct SQL. Added
+  `getBooking(id)`/`getItineraryItem(id)` single-record fetches to `api.ts`
+  (only list fetches existed before). Each screen edits every field the
+  type has, including the new `notes` field. **FX-lock safety**: if the
+  currency changes, or `payment_status` moves away from `'paid'`, and the
+  line already had a locked `fx_rate_to_gbp`, both are cleared on save
+  rather than left stale — a locked rate only makes sense for the
+  currency/settled-state it was locked against; the Costs tab will fetch
+  and lock a fresh one next time it notices the line is paid. **Trip-lock
+  warning, not a hard block**: if the trip's `total_cost_gbp` is already
+  locked, a banner explains that cost/currency/payment-status edits here
+  won't update the cached total automatically — editing non-cost fields
+  (provider name, dates, notes) on a locked/archived trip is still fully
+  allowed, since blocking those too would be more restrictive than
+  necessary. Entry point: a small "Edit" link at the bottom of each
+  booking/itinerary card in `TripDetail.tsx`.
 
 ## Ready to build / open items
 
