@@ -54,6 +54,7 @@ $SrcFileMap = @{
     'attachmentGroups.ts' = 'lib\attachmentGroups.ts'
     'fx.ts'               = 'lib\fx.ts'
     'costs.ts'            = 'lib\costs.ts'
+    'nextUp.ts'           = 'lib\nextUp.ts'
     'TripDetail.tsx'      = 'pages\TripDetail.tsx'
     'AddLink.tsx'         = 'pages\AddLink.tsx'
     'Upload.tsx'          = 'pages\Upload.tsx'
@@ -68,6 +69,7 @@ $SrcFileMap = @{
     'BottomNav.tsx'       = 'components\BottomNav.tsx'
     'PaymentBadge.tsx'    = 'components\PaymentBadge.tsx'
     'CostsTab.tsx'        = 'components\CostsTab.tsx'
+    'NextUpCard.tsx'      = 'components\NextUpCard.tsx'
     'deploy-claude-files.ps1' = 'deploy-claude-files.ps1'
 }
 

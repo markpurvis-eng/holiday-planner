@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getTrips } from '../lib/api'
+import { getTrips, getBookings, getItinerary } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import type { Trip } from '../lib/types'
+import type { TimelineEntry } from '../lib/itineraryTimeline'
+import { findNextUp } from '../lib/nextUp'
 import { TripCard } from '../components/TripCard'
+import { NextUpCard } from '../components/NextUpCard'
 import { LoadingSpinner } from '../components/LoadingSpinner'
-import { getYear } from '../lib/format'
+import { getYear, todayDateString } from '../lib/format'
 
 function YearDivider({ year }: { year: number }) {
   return (
@@ -43,6 +46,7 @@ export default function Dashboard() {
   const [trips, setTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
   const [showPast, setShowPast] = useState(false)
+  const [nextUp, setNextUp] = useState<{ tripId: string; entry: TimelineEntry } | null>(null)
   const { signOut } = useAuth()
   const navigate = useNavigate()
 
@@ -51,6 +55,30 @@ export default function Dashboard() {
       .then(setTrips)
       .finally(() => setLoading(false))
   }, [])
+
+  // "What's next" / at-a-glance (Missing Features item 13) — only
+  // meaningful for a trip that's actually underway today. Found by date
+  // range rather than the stored `status` column, which can lag behind
+  // (same reasoning as the Upload/Add Link trip default, see Fixed #18).
+  // getTrips() doesn't include bookings/itinerary, so that one trip's data
+  // is fetched separately here rather than pulling it for every trip.
+  useEffect(() => {
+    const today = todayDateString()
+    const current = trips.find((t) => t.start_date <= today && t.end_date >= today)
+    if (!current) {
+      setNextUp(null)
+      return
+    }
+    let cancelled = false
+    Promise.all([getBookings(current.id), getItinerary(current.id)]).then(([bookings, itinerary]) => {
+      if (cancelled) return
+      const entry = findNextUp(bookings, itinerary)
+      setNextUp(entry ? { tripId: current.id, entry } : null)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [trips])
 
   const active = trips.filter((t) => t.status === 'active' || t.status === 'upcoming')
   const past = trips.filter((t) => t.status === 'past' || t.status === 'cancelled')
@@ -73,6 +101,8 @@ export default function Dashboard() {
         <LoadingSpinner label="Loading trips…" />
       ) : (
         <>
+          {nextUp && <NextUpCard tripId={nextUp.tripId} entry={nextUp.entry} />}
+
           <section className="space-y-3">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-400">
               Active &amp; Upcoming

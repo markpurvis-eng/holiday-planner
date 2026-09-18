@@ -102,10 +102,12 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   to a placeholder position — booking-start before the day's timed entries,
   booking-end after — since most existing bookings don't have a time
   backfilled yet. No further schema or sort-logic change needed as times get
-  filled in; ordering just keeps improving. There's currently no in-app UI
-  for editing a booking's start/end time — backfilling happens via direct
-  SQL through the Supabase connector (same as the `destination_lat`/`lng`
-  backfill).
+  filled in; ordering just keeps improving. A booking's start/end time can
+  now be corrected in-app via `EditBooking.tsx` (see below); the initial
+  backfill of existing bookings happened via direct SQL through the
+  Supabase connector (same as the `destination_lat`/`lng` backfill), and
+  the `destination_lat`/`lng` fields themselves still have no in-app edit
+  UI.
 
 - **Share itinerary (public PDF)**: `src/lib/shareItinerary.ts` builds a
   date-only day-grouped merge of a trip's non-cancelled bookings and
@@ -338,6 +340,26 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   allowed, since blocking those too would be more restrictive than
   necessary. Entry point: a small "Edit" link at the bottom of each
   booking/itinerary card in `TripDetail.tsx`.
+
+- **"What's next" / at-a-glance card on the Dashboard**: `src/lib/nextUp.ts`
+  exports `findNextUp(bookings, itinerary)`, which reuses
+  `mergeItineraryTimeline()` (see above) to find the single nearest
+  upcoming booking-marker/itinerary-item, rather than reimplementing
+  ordering. "Upcoming" heuristic: a future-dated entry always counts; a
+  today-dated entry counts if it has no time (can't tell whether it's
+  passed, so it stays visible for the rest of the day rather than the
+  card going blank first thing in the morning) or its time hasn't arrived
+  yet. `Dashboard.tsx` finds whichever trip is currently underway by date
+  range (`start_date <= today <= end_date`), not the stored `status`
+  column, which can lag behind (same reasoning as the Upload/Add Link
+  trip default) — fetches that one trip's bookings/itinerary separately
+  from the trip list itself (`getTrips()` doesn't include them), and
+  renders `src/components/NextUpCard.tsx` above the trip list when
+  there's a next-up entry. Tapping it navigates to
+  `/trips/:id?tab=<bookings|itinerary>&highlight=<id>`, the same
+  tab+highlight contract `TripDetail.tsx`'s own booking-marker cards use.
+  No card is shown when no trip is currently underway, or the underway
+  trip has nothing left upcoming.
 
 ## Ready to build / open items
 
