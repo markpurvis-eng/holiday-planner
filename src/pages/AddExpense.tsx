@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { getTrips, getBookings, getItinerary, createExpense, updateBooking, updateItineraryItem } from '../lib/api'
@@ -17,19 +17,37 @@ export default function AddExpense() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const defaultTripId = searchParams.get('trip')
+  // Pre-fill from the "+" on a Costs-tab card (Missing Features #43):
+  // ?booking=<id> or ?itinerary=<id> picks the attach target, ?date=
+  // pre-fills the date paid (the card's own date). The attach-mode
+  // picker below still renders as normal and stays fully editable — this
+  // only sets its initial value, in case the guess needs correcting.
+  const presetBookingId = searchParams.get('booking')
+  const presetItineraryItemId = searchParams.get('itinerary')
+  const presetDate = searchParams.get('date')
   const [trips, setTrips] = useState<Trip[]>([])
   const [tripId, setTripId] = useState('')
   const [bookings, setBookings] = useState<Booking[]>([])
   const [itineraryItems, setItineraryItems] = useState<ItineraryItem[]>([])
-  const [attachMode, setAttachMode] = useState<AttachMode>('trip')
-  const [bookingId, setBookingId] = useState('')
-  const [itineraryItemId, setItineraryItemId] = useState('')
+  const [attachMode, setAttachMode] = useState<AttachMode>(
+    presetBookingId ? 'booking' : presetItineraryItemId ? 'itinerary' : 'trip'
+  )
+  const [bookingId, setBookingId] = useState(presetBookingId ?? '')
+  const [itineraryItemId, setItineraryItemId] = useState(presetItineraryItemId ?? '')
   const [label, setLabel] = useState('')
   const [amount, setAmount] = useState('')
   const [currency, setCurrency] = useState('GBP')
-  const [paidOn, setPaidOn] = useState(todayDateString())
+  const [paidOn, setPaidOn] = useState(presetDate || todayDateString())
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(false)
+  // The tripId-change effect below resets attach mode back to "Whole
+  // trip" on every change, since normally switching trips invalidates
+  // whatever booking/itinerary item was selected. That would also wipe
+  // out a preset from the URL the instant tripId is first set (from '' to
+  // the target trip) — this ref lets that first set through untouched,
+  // so only a trip switch the person makes *after* landing here resets
+  // the attach mode, same as before presets existed.
+  const initializedTripRef = useRef(false)
 
   useEffect(() => {
     getTrips().then((t) => {
@@ -51,9 +69,12 @@ export default function AddExpense() {
       setItineraryItems([])
       return
     }
-    setAttachMode('trip')
-    setBookingId('')
-    setItineraryItemId('')
+    if (initializedTripRef.current) {
+      setAttachMode('trip')
+      setBookingId('')
+      setItineraryItemId('')
+    }
+    initializedTripRef.current = true
     getBookings(tripId).then(setBookings)
     getItinerary(tripId).then(setItineraryItems)
   }, [tripId])

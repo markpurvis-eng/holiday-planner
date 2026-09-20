@@ -18,6 +18,12 @@ export type CostLine = {
   // trip-level.
   attachedBookingId?: string | null
   attachedItineraryItemId?: string | null
+  // Booking start_date / itinerary_item date. Not meaningful for
+  // kind === 'expense' (an expense's relevant date is paid_on, not
+  // tracked here). Used by CostsTab's per-card "+" (add a pre-filled ad
+  // hoc expense) to default Add Expense's date field to the card's own
+  // date rather than today.
+  date?: string | null
 }
 
 // Only cost-bearing, non-cancelled bookings/itinerary items count towards
@@ -38,6 +44,7 @@ export function buildCostLines(bookings: Booking[], itinerary: ItineraryItem[]):
       paymentStatus: b.payment_status,
       fxRateToGbp: b.fx_rate_to_gbp,
       fxRateLockedAt: b.fx_rate_locked_at,
+      date: b.start_date,
     })
   }
 
@@ -53,6 +60,7 @@ export function buildCostLines(bookings: Booking[], itinerary: ItineraryItem[]):
       paymentStatus: item.payment_status,
       fxRateToGbp: item.fx_rate_to_gbp,
       fxRateLockedAt: item.fx_rate_locked_at,
+      date: item.date,
     })
   }
 

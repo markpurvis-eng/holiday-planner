@@ -243,6 +243,24 @@ export function CostsTab({
       variant === 'card'
         ? 'rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100'
         : 'border-t border-stone-100 pt-3 first:border-t-0 first:pt-0'
+    // "+" pre-filled ad hoc expense (Missing Features #43): only on a
+    // booking/itinerary line's own top-level card, not the plain/nested
+    // rows inside an "Ad hoc items" group or the trip-level bundle — an
+    // ad hoc line isn't itself a sensible attach target, and the bundle
+    // card has no single parent to pre-fill. Hidden on a locked trip,
+    // matching "+ Add an ad hoc expense" below. Pre-fills the trip, the
+    // booking/itinerary item itself, and the card's own date; the Add
+    // Expense form keeps its normal attach-mode picker, pre-selected but
+    // still editable, in case the target needs correcting.
+    const addExpenseHref =
+      !locked && variant === 'card' && (line.kind === 'booking' || line.kind === 'itinerary_item')
+        ? (() => {
+            const params = new URLSearchParams({ trip: tripId })
+            params.set(line.kind === 'booking' ? 'booking' : 'itinerary', line.id)
+            if (line.date) params.set('date', line.date)
+            return `/add-expense?${params.toString()}`
+          })()
+        : null
     return (
       <div key={line.key} className={outerClass}>
         <div className="flex items-start justify-between gap-3">
@@ -308,6 +326,11 @@ export function CostsTab({
           </p>
         </div>
         <div className="mt-2 flex items-center justify-end gap-3">
+          {addExpenseHref && (
+            <Link to={addExpenseHref} className="text-xs text-stone-400 hover:text-teal-600">
+              + Add expense
+            </Link>
+          )}
           {receiptState === 'uploading' && <span className="text-xs text-stone-400">Uploading…</span>}
           {receiptState === 'done' && <span className="text-xs text-emerald-600">Receipt attached ✓</span>}
           {receiptState === 'error' && (

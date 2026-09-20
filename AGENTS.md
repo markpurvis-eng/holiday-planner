@@ -361,6 +361,23 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   No card is shown when no trip is currently underway, or the underway
   trip has nothing left upcoming.
 
+- **"+" pre-filled ad hoc expense from a Costs-tab card**: `CostLine`
+  (`src/lib/costs.ts`) carries a `date` field (`booking.start_date` /
+  `itinerary_item.date`) purely so `CostsTab.tsx` can build the pre-fill
+  link — not used anywhere else. Each booking/itinerary line's own
+  top-level card (not the nested/bundle rows inside an "Ad hoc items"
+  group, and not the trip-level "🧾 Ad hoc expenses" bundle, which has no
+  single parent to pre-fill against) gets a "+ Add expense" link to
+  `/add-expense?trip=<id>&booking=<id>|itinerary=<id>&date=<line.date>`,
+  hidden when `locked`. `AddExpense.tsx` reads those three params to set
+  its initial attach mode/target/date — the Trip/Booking/Itinerary
+  attach-mode picker still renders as normal and stays fully editable, in
+  case the guess needs correcting. `initializedTripRef` in `AddExpense.tsx`
+  stops the existing "reset attach mode on trip change" effect from
+  wiping out the preset the instant `tripId` is first set from the URL —
+  only a trip switch the person makes *after* landing on the page resets
+  attach mode, same as before presets existed.
+
 ## Ready to build / open items
 
 - The installable icon is SVG-only (see above) — a real PNG icon set is a good
