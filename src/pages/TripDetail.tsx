@@ -527,7 +527,15 @@ export default function TripDetail() {
                       documents={documents.filter((d) => d.itinerary_item_id === item.id)}
                       links={links.filter((l) => l.itinerary_item_id === item.id)}
                     />
-                    <div className="mt-2 flex justify-end">
+                    <div className="mt-2 flex justify-end gap-3">
+                      {trip.total_cost_locked_at == null && (
+                        <Link
+                          to={`/add-expense?trip=${id}&itinerary=${item.id}&date=${item.date}`}
+                          className="text-xs font-medium text-teal-600 hover:text-teal-700"
+                        >
+                          + Add expense
+                        </Link>
+                      )}
                       <Link
                         to={`/edit-itinerary-item?id=${item.id}${id ? `&trip=${id}` : ''}`}
                         className="text-xs font-medium text-teal-600 hover:text-teal-700"
