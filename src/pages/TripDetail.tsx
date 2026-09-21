@@ -415,6 +415,12 @@ export default function TripDetail() {
 
         {tab === 'itinerary' && (
           <>
+            <Link
+              to={`/edit-itinerary-item?trip=${id}`}
+              className="block rounded-2xl bg-teal-50 p-3 text-center text-sm font-medium text-teal-700 hover:bg-teal-100"
+            >
+              + Add itinerary item
+            </Link>
             {timeline.length === 0 && itinerary.length === 0 && bookings.length === 0 && (
               <EmptyState text="No itinerary items yet." />
             )}

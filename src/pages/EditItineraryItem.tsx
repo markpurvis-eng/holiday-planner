@@ -1,18 +1,30 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { getItineraryItem, getTrip, updateItineraryItem } from '../lib/api'
-import type { ItineraryItem, PaymentStatus } from '../lib/types'
+import { createItineraryItem, getItineraryItem, getTrip, updateItineraryItem } from '../lib/api'
+import type { ItineraryItem, PaymentStatus, Trip } from '../lib/types'
 import { LoadingSpinner } from '../components/LoadingSpinner'
+import { clampToTripRange, nowTimeString, todayDateString } from '../lib/format'
+import {
+  getLastItineraryCurrency,
+  getLastItineraryType,
+  setLastItineraryCurrency,
+  setLastItineraryType,
+} from '../lib/settings'
 
 export default function EditItineraryItem() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const itemId = searchParams.get('id')
   const tripId = searchParams.get('trip')
+  // No ?id= means this is the "Add itinerary item" flow rather than
+  // editing an existing one — same form, same route, just backed by
+  // createItineraryItem instead of updateItineraryItem on submit.
+  const isNew = !itemId
 
   const [item, setItem] = useState<ItineraryItem | null>(null)
-  const [tripLocked, setTripLocked] = useState(false)
+  const [trip, setTrip] = useState<Trip | null>(null)
+  const [ready, setReady] = useState(false)
   const [type, setType] = useState('')
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
@@ -28,33 +40,77 @@ export default function EditItineraryItem() {
   const [error, setError] = useState(false)
 
   useEffect(() => {
-    if (!itemId) return
-    getItineraryItem(itemId).then((i) => {
-      if (!i) return
-      setItem(i)
-      setType(i.type)
-      setDate(i.date)
-      setTime(i.time ?? '')
-      setVenue(i.venue ?? '')
-      setReference(i.reference ?? '')
-      setCost(i.cost != null ? String(i.cost) : '')
-      setCurrency(i.currency ?? '')
-      setPaymentStatus(i.payment_status)
-      setCancelled(i.cancelled)
-      setExtractedDetails(i.extracted_details ?? '')
-      setNotes(i.notes ?? '')
-    })
-    if (tripId) {
-      getTrip(tripId).then((t) => setTripLocked(t?.total_cost_locked_at != null))
+    let stale = false
+
+    async function load() {
+      const t = tripId ? await getTrip(tripId) : null
+      if (stale) return
+      setTrip(t)
+
+      if (itemId) {
+        const i = await getItineraryItem(itemId)
+        if (stale || !i) return
+        setItem(i)
+        setType(i.type)
+        setDate(i.date)
+        setTime(i.time ?? '')
+        setVenue(i.venue ?? '')
+        setReference(i.reference ?? '')
+        setCost(i.cost != null ? String(i.cost) : '')
+        setCurrency(i.currency ?? '')
+        setPaymentStatus(i.payment_status)
+        setCancelled(i.cancelled)
+        setExtractedDetails(i.extracted_details ?? '')
+        setNotes(i.notes ?? '')
+      } else {
+        // New item, added on the go — default to today/now (clamped inside
+        // the trip's own dates, in case it's added before departure or
+        // after the trip has technically ended) and whatever type/currency
+        // was used last time on this device.
+        const today = todayDateString()
+        setDate(t ? clampToTripRange(today, t.start_date, t.end_date) : today)
+        setTime(nowTimeString())
+        setType(getLastItineraryType())
+        setCurrency(getLastItineraryCurrency())
+      }
+      setReady(true)
+    }
+
+    load()
+    return () => {
+      stale = true
     }
   }, [itemId, tripId])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!item || !type.trim() || !date) return
+    if (!type.trim() || !date) return
     setSaving(true)
     setError(false)
     try {
+      if (isNew) {
+        if (!tripId) return
+        const created = await createItineraryItem({
+          trip_id: tripId,
+          type: type.trim(),
+          date,
+          time: time || null,
+          venue: venue.trim() || null,
+          reference: reference.trim() || null,
+          cost: cost === '' ? null : Number(cost),
+          currency: currency.trim() ? currency.trim().toUpperCase() : null,
+          payment_status: paymentStatus,
+          cancelled,
+          extracted_details: extractedDetails.trim() || null,
+          notes: notes.trim() || null,
+        })
+        setLastItineraryType(type.trim())
+        if (currency.trim()) setLastItineraryCurrency(currency.trim().toUpperCase())
+        navigate(`/trips/${tripId}?tab=itinerary&highlight=${created.id}`)
+        return
+      }
+
+      if (!item) return
       const currencyChanged = currency.toUpperCase() !== (item.currency ?? '')
       const noLongerPaid = item.payment_status === 'paid' && paymentStatus !== 'paid'
       // Same reasoning as EditBooking - a locked FX rate only makes sense
@@ -83,22 +139,31 @@ export default function EditItineraryItem() {
     }
   }
 
-  if (!itemId) {
-    return <p className="p-4 text-sm text-stone-500">No itinerary item specified.</p>
+  if (!itemId && !tripId) {
+    return <p className="p-4 text-sm text-stone-500">No trip specified.</p>
   }
 
-  if (!item) {
-    return <LoadingSpinner label="Loading itinerary item…" />
+  if (!ready) {
+    return <LoadingSpinner label={isNew ? 'Loading trip…' : 'Loading itinerary item…'} />
   }
+
+  if (!isNew && !item) {
+    return <p className="p-4 text-sm text-stone-500">Itinerary item not found.</p>
+  }
+
+  const tripLocked = trip?.total_cost_locked_at != null
 
   return (
     <div className="mx-auto max-w-lg px-4 pb-24 pt-6">
-      <h1 className="mb-6 text-2xl font-bold text-stone-800">Edit Itinerary Item</h1>
+      <h1 className="mb-6 text-2xl font-bold text-stone-800">
+        {isNew ? 'Add Itinerary Item' : 'Edit Itinerary Item'}
+      </h1>
 
       {tripLocked && (
         <p className="mb-4 rounded-2xl bg-amber-50 p-3 text-sm text-amber-800">
-          🔒 This trip's total cost is locked. Changing cost, currency, or payment status here won't
-          update it automatically — ask to have the trip re-locked once you're done editing.
+          🔒 This trip's total cost is locked. {isNew ? 'Adding' : 'Changing'} cost, currency, or
+          payment status here won't update it automatically — ask to have the trip re-locked once
+          you're done editing.
         </p>
       )}
 
@@ -118,6 +183,7 @@ export default function EditItineraryItem() {
           <input
             value={venue}
             onChange={(e) => setVenue(e.target.value)}
+            autoFocus={isNew}
             className="w-full rounded-xl border border-stone-200 px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
           />
         </div>

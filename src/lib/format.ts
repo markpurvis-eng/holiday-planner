@@ -90,3 +90,28 @@ export function todayDateString(): string {
   const d = String(now.getDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
 }
+
+// Current local time as "HH:MM", rounded to the nearest 5 minutes — a nicer
+// default to land in a <input type="time"> than an exact-to-the-second
+// "14:37". Used to pre-fill a new itinerary item's time with "now".
+export function nowTimeString(): string {
+  const now = new Date()
+  let hours = now.getHours()
+  let minutes = Math.round(now.getMinutes() / 5) * 5
+  if (minutes === 60) {
+    minutes = 0
+    hours = (hours + 1) % 24
+  }
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+}
+
+// Clamps a YYYY-MM-DD date string into an inclusive [start, end] range of
+// other date-only strings. Plain string comparison is safe since all three
+// are YYYY-MM-DD. Used to keep a new itinerary item's default date sensible
+// if it's being added before a trip starts or after it's technically ended
+// (today would otherwise fall outside the trip it's being attached to).
+export function clampToTripRange(dateStr: string, start: string, end: string): string {
+  if (dateStr < start) return start
+  if (dateStr > end) return end
+  return dateStr
+}
