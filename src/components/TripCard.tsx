@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import type { Trip } from '../lib/types'
 import { formatDate, daysUntil, formatMoney } from '../lib/format'
 
@@ -25,13 +25,24 @@ export function TripCard({
   trip: Trip
   attachmentCounts?: TripAttachmentCounts
 }) {
+  const navigate = useNavigate()
   const icon = trip.trip_type?.icon ?? '🧳'
   const showCountdown = trip.status === 'upcoming'
   const hasAttachments = !!attachmentCounts && (attachmentCounts.documents > 0 || attachmentCounts.links > 0)
+  // Not a <Link> itself, because the 📎/🔗 badges below need to be their
+  // own links to the Documents/Links tab specifically — an <a> can't
+  // nest another <a>, so the whole-card tap target is a div with its own
+  // click handler instead, and each badge's Link calls stopPropagation()
+  // so tapping it doesn't also fire the card's own navigate().
   return (
-    <Link
-      to={`/trips/${trip.id}`}
-      className="flex items-center gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100 transition hover:shadow-md active:scale-[0.99]"
+    <div
+      role="link"
+      tabIndex={0}
+      onClick={() => navigate(`/trips/${trip.id}`)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') navigate(`/trips/${trip.id}`)
+      }}
+      className="flex cursor-pointer items-center gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100 transition hover:shadow-md active:scale-[0.99]"
     >
       <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-3xl">
         {icon}
@@ -51,9 +62,25 @@ export function TripCard({
           <p className="mt-1 text-xs text-stone-400">Total: {formatMoney(trip.total_cost_gbp, 'GBP')}</p>
         )}
         {hasAttachments && (
-          <p className="mt-1 flex items-center gap-2 text-xs text-stone-400">
-            {attachmentCounts!.documents > 0 && <span>📎 {attachmentCounts!.documents}</span>}
-            {attachmentCounts!.links > 0 && <span>🔗 {attachmentCounts!.links}</span>}
+          <p className="mt-1 flex items-center gap-3 text-xs text-stone-400">
+            {attachmentCounts!.documents > 0 && (
+              <Link
+                to={`/trips/${trip.id}?tab=documents`}
+                onClick={(e) => e.stopPropagation()}
+                className="hover:text-teal-600"
+              >
+                📎 {attachmentCounts!.documents}
+              </Link>
+            )}
+            {attachmentCounts!.links > 0 && (
+              <Link
+                to={`/trips/${trip.id}?tab=links`}
+                onClick={(e) => e.stopPropagation()}
+                className="hover:text-teal-600"
+              >
+                🔗 {attachmentCounts!.links}
+              </Link>
+            )}
           </p>
         )}
       </div>
@@ -62,6 +89,6 @@ export function TripCard({
           Active
         </span>
       )}
-    </Link>
+    </div>
   )
 }
