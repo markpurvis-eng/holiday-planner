@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { createItineraryItem, getItineraryItem, getTrip, updateItineraryItem } from '../lib/api'
 import type { ItineraryItem, PaymentStatus, Trip } from '../lib/types'
 import { LoadingSpinner } from '../components/LoadingSpinner'
+import { CurrencyQuickPicks } from '../components/CurrencyQuickPicks'
 import { clampToTripRange, nowTimeString, todayDateString } from '../lib/format'
 import {
   getLastItineraryCurrency,
@@ -231,8 +232,9 @@ export default function EditItineraryItem() {
               className="w-full rounded-xl border border-stone-200 px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
             />
           </div>
-          <div className="w-28">
+          <div className="w-36">
             <label className="mb-1 block text-sm font-medium text-stone-600">Currency</label>
+            <CurrencyQuickPicks value={currency} onChange={setCurrency} />
             <input
               value={currency}
               onChange={(e) => setCurrency(e.target.value.toUpperCase())}

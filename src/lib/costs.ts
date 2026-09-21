@@ -185,20 +185,28 @@ export function groupCostLines(lines: CostLine[]): CostRow[] {
     }
   }
 
-  const rows: CostRow[] = primary.map((line) => ({
-    kind: 'line',
-    line,
-    nested: nestedByParentKey.get(line.key) ?? [],
-  }))
+  const rows: CostRow[] = []
 
+  // Rendered first within Paid (Mark's expectation, 18 Sep 2026) — pushed
+  // ahead of the individual booking/itinerary lines below. groupCostLines()
+  // only builds row order, not what counts towards Paid/Outstanding/Grand
+  // total, so this doesn't change any totals, only render order.
   if (tripLevel.length > 0) {
     rows.push({
       kind: 'expenseBundle',
       key: 'trip-level-expenses',
-      label: 'Ad hoc expenses',
+      label: 'Trip ad hoc expenses',
       lines: tripLevel,
     })
   }
+
+  rows.push(
+    ...primary.map((line) => ({
+      kind: 'line' as const,
+      line,
+      nested: nestedByParentKey.get(line.key) ?? [],
+    }))
+  )
 
   return rows
 }

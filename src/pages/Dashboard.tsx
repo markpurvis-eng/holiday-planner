@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getTrips, getBookings, getItinerary } from '../lib/api'
+import { getTrips, getBookings, getItinerary, getDocuments, getLinks } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import type { Trip } from '../lib/types'
 import type { TimelineEntry } from '../lib/itineraryTimeline'
 import { findNextUp } from '../lib/nextUp'
-import { TripCard } from '../components/TripCard'
+import { TripCard, type TripAttachmentCounts } from '../components/TripCard'
 import { NextUpCard } from '../components/NextUpCard'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { getYear, todayDateString } from '../lib/format'
@@ -23,7 +23,13 @@ function YearDivider({ year }: { year: number }) {
 // Renders trip cards with a year header before the first trip and a divider
 // inserted wherever the year changes after that. Trips are expected in date
 // order already (getTrips orders by start_date).
-function TripListWithYearDividers({ trips }: { trips: Trip[] }) {
+function TripListWithYearDividers({
+  trips,
+  attachmentCounts,
+}: {
+  trips: Trip[]
+  attachmentCounts: Map<string, TripAttachmentCounts>
+}) {
   let lastYear: number | null = null
   return (
     <>
@@ -34,7 +40,7 @@ function TripListWithYearDividers({ trips }: { trips: Trip[] }) {
         return (
           <div key={trip.id}>
             {showDivider && <YearDivider year={year} />}
-            <TripCard trip={trip} />
+            <TripCard trip={trip} attachmentCounts={attachmentCounts.get(trip.id)} />
           </div>
         )
       })}
@@ -47,6 +53,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [showPast, setShowPast] = useState(false)
   const [nextUp, setNextUp] = useState<{ tripId: string; entry: TimelineEntry } | null>(null)
+  const [attachmentCounts, setAttachmentCounts] = useState<Map<string, TripAttachmentCounts>>(new Map())
   const { signOut } = useAuth()
   const navigate = useNavigate()
 
@@ -55,6 +62,37 @@ export default function Dashboard() {
       .then(setTrips)
       .finally(() => setLoading(false))
   }, [])
+
+  const active = trips.filter((t) => t.status === 'active' || t.status === 'upcoming')
+  const past = trips.filter((t) => t.status === 'past' || t.status === 'cancelled')
+
+  // Trip-level (not booking/itinerary-attached) document/link counts, shown
+  // as small badges on each card (Missing Features #23) — a quick way to
+  // spot which trips already have a guide/reference link saved without
+  // opening each one. Scoped to Active & Upcoming only, same reasoning as
+  // "What's next" below: Past Trips is collapsed by default, so fetching
+  // for trips nobody's about to look at would be wasted work.
+  useEffect(() => {
+    if (active.length === 0) return
+    let cancelled = false
+    Promise.all(
+      active.map(async (t) => {
+        const [docs, links] = await Promise.all([getDocuments(t.id), getLinks(t.id)])
+        const tripLevelCount = (items: { booking_id: string | null; itinerary_item_id: string | null }[]) =>
+          items.filter((i) => i.booking_id == null && i.itinerary_item_id == null).length
+        return [t.id, { documents: tripLevelCount(docs), links: tripLevelCount(links) }] as const
+      })
+    ).then((entries) => {
+      if (cancelled) return
+      setAttachmentCounts(new Map(entries))
+    })
+    return () => {
+      cancelled = true
+    }
+    // Keyed off length, same approximation CostsTab uses elsewhere in this
+    // app — re-running on every trips render would refetch constantly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active.length])
 
   // "What's next" / at-a-glance (Missing Features item 13) — only
   // meaningful for a trip that's actually underway today. Found by date
@@ -79,9 +117,6 @@ export default function Dashboard() {
       cancelled = true
     }
   }, [trips])
-
-  const active = trips.filter((t) => t.status === 'active' || t.status === 'upcoming')
-  const past = trips.filter((t) => t.status === 'past' || t.status === 'cancelled')
 
   async function handleSignOut() {
     await signOut()
@@ -113,7 +148,7 @@ export default function Dashboard() {
                 Supabase.
               </p>
             ) : (
-              <TripListWithYearDividers trips={active} />
+              <TripListWithYearDividers trips={active} attachmentCounts={attachmentCounts} />
             )}
           </section>
 
@@ -128,7 +163,7 @@ export default function Dashboard() {
               </button>
               {showPast && (
                 <div className="mt-3 space-y-3 opacity-80">
-                  <TripListWithYearDividers trips={past} />
+                  <TripListWithYearDividers trips={past} attachmentCounts={attachmentCounts} />
                 </div>
               )}
             </section>

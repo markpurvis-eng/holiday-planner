@@ -13,9 +13,21 @@ function formatCountdown(days: number): string {
   return `Departs in ${days} days`
 }
 
-export function TripCard({ trip }: { trip: Trip }) {
+// Trip-level (not booking/itinerary-attached) document/link counts —
+// Missing Features #23. Optional: Dashboard only fetches these for
+// Active & Upcoming trips, so a Past Trips card renders with none.
+export type TripAttachmentCounts = { documents: number; links: number }
+
+export function TripCard({
+  trip,
+  attachmentCounts,
+}: {
+  trip: Trip
+  attachmentCounts?: TripAttachmentCounts
+}) {
   const icon = trip.trip_type?.icon ?? '🧳'
   const showCountdown = trip.status === 'upcoming'
+  const hasAttachments = !!attachmentCounts && (attachmentCounts.documents > 0 || attachmentCounts.links > 0)
   return (
     <Link
       to={`/trips/${trip.id}`}
@@ -37,6 +49,12 @@ export function TripCard({ trip }: { trip: Trip }) {
         )}
         {trip.total_cost_gbp != null && (
           <p className="mt-1 text-xs text-stone-400">Total: {formatMoney(trip.total_cost_gbp, 'GBP')}</p>
+        )}
+        {hasAttachments && (
+          <p className="mt-1 flex items-center gap-2 text-xs text-stone-400">
+            {attachmentCounts!.documents > 0 && <span>📎 {attachmentCounts!.documents}</span>}
+            {attachmentCounts!.links > 0 && <span>🔗 {attachmentCounts!.links}</span>}
+          </p>
         )}
       </div>
       {trip.status === 'active' && (

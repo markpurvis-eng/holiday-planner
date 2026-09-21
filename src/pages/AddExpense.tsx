@@ -5,6 +5,7 @@ import { getTrips, getBookings, getItinerary, createExpense, updateBooking, upda
 import { fetchGbpRate } from '../lib/fx'
 import type { Booking, ItineraryItem, Trip } from '../lib/types'
 import { formatDate, daysUntil, todayDateString } from '../lib/format'
+import { CurrencyQuickPicks } from '../components/CurrencyQuickPicks'
 
 type AttachMode = 'trip' | 'booking' | 'itinerary'
 
@@ -168,8 +169,9 @@ export default function AddExpense() {
               className="w-full rounded-xl border border-stone-200 px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
             />
           </div>
-          <div className="w-28">
+          <div className="w-36">
             <label className="mb-1 block text-sm font-medium text-stone-600">Currency</label>
+            <CurrencyQuickPicks value={currency} onChange={setCurrency} />
             <input
               value={currency}
               onChange={(e) => setCurrency(e.target.value.toUpperCase())}
