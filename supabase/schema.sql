@@ -1,11 +1,41 @@
 -- Holiday Planner database schema
--- Run this ONCE in the Supabase SQL editor (Project > SQL Editor > New query)
--- before using the app. This is not applied automatically -- no service-role
--- key or Supabase CLI credentials were available to run migrations
--- programmatically, so paste this file's contents into the SQL editor and
--- run it manually.
+-- Run this in the Supabase SQL editor (Project > SQL Editor > New query).
+-- This is not applied automatically -- no service-role key or Supabase CLI
+-- credentials were available to run migrations programmatically, so paste
+-- this file's contents into the SQL editor and run it manually. The file is
+-- idempotent (create if not exists / add column if not exists / drop then
+-- create for policies), so re-running it is safe.
+--
+-- RULES FOR EVERY SCHEMA CHANGE
+--   1. BEFORE running an updated version of this file, take a full dump of
+--      the live database WITH DATA (e.g. `supabase db dump` for the schema
+--      plus `supabase db dump --data-only`, or pg_dump against the project's
+--      connection string) so the previous schema AND data can be restored
+--      if the script fails part-way. Keep the dump with the version number.
+--   2. Add the new change to this file AND add a new row to the
+--      schema_version history at the bottom (next version number, short
+--      description). The version goes up by exactly one per schema change.
+--   3. Any new table needs Data API grants in the same script (from
+--      30 Oct 2026 Supabase no longer grants them automatically):
+--        grant select, insert, update, delete on public.<table> to authenticated;
+--        grant select, insert, update, delete on public.<table> to service_role;
+--      Skip anon unless the table genuinely needs public access.
 
 create extension if not exists "pgcrypto";
+
+-- --- schema_version --------------------------------------------------------
+-- One row per schema change, so the highest version is the current one:
+--   select max(version) from schema_version;
+-- The app only ever reads this table; rows are added by this script.
+
+create table if not exists schema_version (
+  version integer primary key,
+  description text not null,
+  applied_at timestamptz not null default now()
+);
+
+grant select on public.schema_version to authenticated;
+grant select, insert, update, delete on public.schema_version to service_role;
 
 -- --- trip_type -------------------------------------------------------------
 
@@ -15,6 +45,11 @@ create table if not exists trip_type (
   icon text not null,
   created_at timestamptz not null default now()
 );
+
+-- Data API grants (required for new tables from 30 Oct 2026). RLS below still
+-- controls which rows are visible; anon is deliberately not granted.
+grant select, insert, update, delete on public.trip_type to authenticated;
+grant select, insert, update, delete on public.trip_type to service_role;
 
 insert into trip_type (name, icon) values
   ('Cruise', '🚢'),
@@ -35,6 +70,11 @@ create table if not exists trip (
   trip_type_id uuid references trip_type(id) on delete set null,
   created_at timestamptz not null default now()
 );
+
+-- Data API grants (required for new tables from 30 Oct 2026). RLS below still
+-- controls which rows are visible; anon is deliberately not granted.
+grant select, insert, update, delete on public.trip to authenticated;
+grant select, insert, update, delete on public.trip to service_role;
 
 -- Added after initial release: a single anchor point (used for the
 -- pre-trip weather forecast) for trips with one main destination.
@@ -75,6 +115,11 @@ create table if not exists booking (
   extracted_details text,
   created_at timestamptz not null default now()
 );
+
+-- Data API grants (required for new tables from 30 Oct 2026). RLS below still
+-- controls which rows are visible; anon is deliberately not granted.
+grant select, insert, update, delete on public.booking to authenticated;
+grant select, insert, update, delete on public.booking to service_role;
 
 alter table booking add column if not exists currency text default 'GBP';
 
@@ -121,6 +166,11 @@ create table if not exists payment (
   created_at timestamptz not null default now()
 );
 
+-- Data API grants (required for new tables from 30 Oct 2026). RLS below still
+-- controls which rows are visible; anon is deliberately not granted.
+grant select, insert, update, delete on public.payment to authenticated;
+grant select, insert, update, delete on public.payment to service_role;
+
 -- --- itinerary_item --------------------------------------------------------
 
 create table if not exists itinerary_item (
@@ -140,6 +190,11 @@ create table if not exists itinerary_item (
   -- the trip's bookings.
   cost numeric
 );
+
+-- Data API grants (required for new tables from 30 Oct 2026). RLS below still
+-- controls which rows are visible; anon is deliberately not granted.
+grant select, insert, update, delete on public.itinerary_item to authenticated;
+grant select, insert, update, delete on public.itinerary_item to service_role;
 
 alter table itinerary_item add column if not exists cost numeric;
 
@@ -190,6 +245,11 @@ create table if not exists expense (
   created_at timestamptz not null default now()
 );
 
+-- Data API grants (required for new tables from 30 Oct 2026). RLS below still
+-- controls which rows are visible; anon is deliberately not granted.
+grant select, insert, update, delete on public.expense to authenticated;
+grant select, insert, update, delete on public.expense to service_role;
+
 -- --- document ------------------------------------------------------------
 
 create table if not exists document (
@@ -207,6 +267,11 @@ create table if not exists document (
   day_date date,
   created_at timestamptz not null default now()
 );
+
+-- Data API grants (required for new tables from 30 Oct 2026). RLS below still
+-- controls which rows are visible; anon is deliberately not granted.
+grant select, insert, update, delete on public.document to authenticated;
+grant select, insert, update, delete on public.document to service_role;
 
 alter table document add column if not exists itinerary_item_id uuid references itinerary_item(id) on delete cascade;
 
@@ -239,6 +304,11 @@ create table if not exists link (
   day_date date,
   created_at timestamptz not null default now()
 );
+
+-- Data API grants (required for new tables from 30 Oct 2026). RLS below still
+-- controls which rows are visible; anon is deliberately not granted.
+grant select, insert, update, delete on public.link to authenticated;
+grant select, insert, update, delete on public.link to service_role;
 
 alter table link add column if not exists itinerary_item_id uuid references itinerary_item(id) on delete cascade;
 
@@ -277,6 +347,11 @@ create table if not exists todo (
   created_at timestamptz not null default now()
 );
 
+-- Data API grants (required for new tables from 30 Oct 2026). RLS below still
+-- controls which rows are visible; anon is deliberately not granted.
+grant select, insert, update, delete on public.todo to authenticated;
+grant select, insert, update, delete on public.todo to service_role;
+
 create index if not exists document_itinerary_item_id_idx on document (itinerary_item_id);
 create index if not exists link_itinerary_item_id_idx on link (itinerary_item_id);
 
@@ -294,6 +369,7 @@ alter table expense enable row level security;
 alter table document enable row level security;
 alter table link enable row level security;
 alter table todo enable row level security;
+alter table schema_version enable row level security;
 
 drop policy if exists "allow all for authenticated" on trip_type;
 create policy "allow all for authenticated" on trip_type for all to authenticated using (true) with check (true);
@@ -321,6 +397,10 @@ create policy "allow all for authenticated" on link for all to authenticated usi
 
 drop policy if exists "allow all for authenticated" on todo;
 create policy "allow all for authenticated" on todo for all to authenticated using (true) with check (true);
+
+-- schema_version is read-only for the app (service_role bypasses RLS).
+drop policy if exists "read for authenticated" on schema_version;
+create policy "read for authenticated" on schema_version for select to authenticated using (true);
 
 -- --- Storage bucket for uploaded documents/photos --------------------------
 
@@ -365,3 +445,11 @@ create policy "itineraries bucket public read"
   on storage.objects for select
   to anon
   using (bucket_id = 'itineraries');
+
+-- --- Schema version history ------------------------------------------------
+-- Add one insert per schema change, incrementing the version by 1. The
+-- on-conflict clause keeps re-running this file safe.
+
+insert into schema_version (version, description) values
+  (1, 'Baseline: added Data API grants to all tables and the schema_version table')
+on conflict (version) do nothing;
