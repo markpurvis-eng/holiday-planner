@@ -242,6 +242,31 @@ create table if not exists link (
 
 alter table link add column if not exists itinerary_item_id uuid references itinerary_item(id) on delete cascade;
 
+-- Missing Features #24: every new trip automatically gets a trip-level
+-- "photos" link, pointed at a Google Photos search scoped to its date
+-- range (the same URL pattern already used for city-guide/reference
+-- links, just generated instead of typed by hand). A DB trigger rather
+-- than app code, since trip rows are created both from the app and
+-- directly via Supabase (e.g. Claude's Supabase MCP connector) -- a
+-- trigger is the one place that covers every insert path.
+create or replace function add_trip_photos_link() returns trigger as $$
+begin
+  insert into link (trip_id, label, url)
+  values (
+    new.id,
+    'photos',
+    'https://photos.google.com/search/%23date_range%3A'
+      || to_char(new.start_date, 'YYYYMMDD') || '-' || to_char(new.end_date, 'YYYYMMDD')
+  );
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_add_trip_photos_link on trip;
+create trigger trg_add_trip_photos_link
+  after insert on trip
+  for each row execute function add_trip_photos_link();
+
 -- --- todo --------------------------------------------------------------
 
 create table if not exists todo (
