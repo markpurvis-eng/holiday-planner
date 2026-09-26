@@ -71,6 +71,7 @@ $SrcFileMap = @{
     'CostsTab.tsx'        = 'components\CostsTab.tsx'
     'NextUpCard.tsx'      = 'components\NextUpCard.tsx'
     'CurrencyQuickPicks.tsx' = 'components\CurrencyQuickPicks.tsx'
+    'TypeQuickPicks.tsx'  = 'components\TypeQuickPicks.tsx'
     'deploy-claude-files.ps1' = 'deploy-claude-files.ps1'
 }
 

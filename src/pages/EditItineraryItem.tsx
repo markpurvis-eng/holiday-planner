@@ -5,6 +5,7 @@ import { createItineraryItem, getItineraryItem, getTrip, updateItineraryItem } f
 import type { ItineraryItem, PaymentStatus, Trip } from '../lib/types'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { CurrencyQuickPicks } from '../components/CurrencyQuickPicks'
+import { TypeQuickPicks } from '../components/TypeQuickPicks'
 import { clampToTripRange, nowTimeString, todayDateString } from '../lib/format'
 import {
   getLastItineraryCurrency,
@@ -171,6 +172,7 @@ export default function EditItineraryItem() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="mb-1 block text-sm font-medium text-stone-600">Type</label>
+          <TypeQuickPicks value={type} onChange={setType} />
           <input
             value={type}
             onChange={(e) => setType(e.target.value)}
