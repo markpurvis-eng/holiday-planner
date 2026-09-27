@@ -73,12 +73,36 @@ export function LongPressMenu({ actions, children }: { actions: LongPressAction[
     <>
       {child}
       {open && (
+        // The finger/mouse that triggered the long-press is often still down
+        // at this exact screen spot when this sheet mounts underneath it —
+        // on Android that continued hold gets read as a fresh long-press
+        // landing on whatever text is now here, opening the OS's own
+        // "Copy/Select all" toolbar on top of it; on Windows/Chrome, a
+        // right-click-and-hold trigger fires its native contextmenu event on
+        // mouseup against whatever's now under the cursor. Both are really
+        // the same bug: the v1.25.1 cloneElement fix only protected the
+        // *original* pressed element, not this freshly-rendered sheet. So
+        // the same no-select/no-callout/no-contextmenu treatment goes on the
+        // overlay, panel and every button here too.
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/30"
+          className="fixed inset-0 z-50 flex select-none items-end justify-center bg-black/30"
+          style={{
+            WebkitUserSelect: 'none',
+            userSelect: 'none',
+            WebkitTouchCallout: 'none',
+            touchAction: 'manipulation',
+          }}
           onClick={() => setOpen(false)}
+          onContextMenu={(e) => e.preventDefault()}
         >
           <div
-            className="mb-10 w-[90%] max-w-sm overflow-hidden rounded-2xl bg-white shadow-lg"
+            className="mb-10 w-[90%] max-w-sm select-none overflow-hidden rounded-2xl bg-white shadow-lg"
+            style={{
+              WebkitUserSelect: 'none',
+              userSelect: 'none',
+              WebkitTouchCallout: 'none',
+              touchAction: 'manipulation',
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             {actions.map((action) => (
@@ -89,9 +113,16 @@ export function LongPressMenu({ actions, children }: { actions: LongPressAction[
                   setOpen(false)
                   action.onSelect()
                 }}
-                className={`block w-full border-b border-stone-100 px-4 py-3 text-center font-medium last:border-b-0 ${
+                className={`block w-full select-none border-b border-stone-100 px-4 py-3 text-center font-medium last:border-b-0 ${
                   action.destructive ? 'text-red-600' : 'text-stone-700'
                 }`}
+                style={{
+                  WebkitUserSelect: 'none',
+                  userSelect: 'none',
+                  WebkitTouchCallout: 'none',
+                  touchAction: 'manipulation',
+                }}
+                onContextMenu={(e) => e.preventDefault()}
               >
                 {action.label}
               </button>
@@ -99,7 +130,14 @@ export function LongPressMenu({ actions, children }: { actions: LongPressAction[
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="block w-full bg-stone-50 px-4 py-3 text-center font-medium text-stone-500"
+              className="block w-full select-none bg-stone-50 px-4 py-3 text-center font-medium text-stone-500"
+              style={{
+                WebkitUserSelect: 'none',
+                userSelect: 'none',
+                WebkitTouchCallout: 'none',
+                touchAction: 'manipulation',
+              }}
+              onContextMenu={(e) => e.preventDefault()}
             >
               Cancel
             </button>

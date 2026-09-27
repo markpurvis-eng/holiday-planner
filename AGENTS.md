@@ -403,6 +403,18 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   mentioned this alongside delete, but it needs its own attach-mode-picker UI
   inside the action sheet and was descoped to ship delete first; worth
   revisiting as a fast-follow on the same `LongPressMenu`.
+  **Mobile/desktop native-gesture collision (v1.25.1 → v1.25.2)**: the
+  finger/mouse that triggers a long-press is often still down at that exact
+  screen spot when the action sheet mounts underneath it. v1.25.1 fixed the
+  originally-pressed card (`cloneElement` applying `user-select:none` etc.
+  directly onto it, since a `display:contents` wrapper doesn't reliably
+  propagate that to the actual touched element on Android Chrome), but left
+  the sheet itself unprotected — Android was then selecting the sheet's own
+  "Delete" text, and Chrome/Windows was firing its native right-click context
+  menu against the sheet. Both turned out to be the same bug from two
+  angles: v1.25.2 applies the same `user-select`/`-webkit-touch-callout`/
+  `touch-action` styles plus an `onContextMenu` preventDefault to the sheet's
+  overlay, panel, and every button.
 
 ## Ready to build / open items
 
