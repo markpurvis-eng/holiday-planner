@@ -1,4 +1,5 @@
 import type { Document, DocumentType } from '../lib/types'
+import { LongPressMenu } from './LongPressMenu'
 
 const LABELS: Record<DocumentType, string> = {
   confirmation: 'Confirmations',
@@ -7,7 +8,15 @@ const LABELS: Record<DocumentType, string> = {
   guide: 'Guides',
 }
 
-export function DocumentGroup({ type, documents }: { type: DocumentType; documents: Document[] }) {
+export function DocumentGroup({
+  type,
+  documents,
+  onDelete,
+}: {
+  type: DocumentType
+  documents: Document[]
+  onDelete: (doc: Document) => void
+}) {
   if (documents.length === 0) return null
 
   return (
@@ -17,28 +26,32 @@ export function DocumentGroup({ type, documents }: { type: DocumentType; documen
       </h4>
       <div className="grid grid-cols-3 gap-2">
         {documents.map((doc) => (
-          <a
+          <LongPressMenu
             key={doc.id}
-            href={doc.file_url}
-            target="_blank"
-            rel="noreferrer"
-            className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl bg-white p-2 text-center ring-1 ring-stone-100 hover:shadow-md"
+            actions={[{ label: 'Delete', destructive: true, onSelect: () => onDelete(doc) }]}
           >
-            {type === 'photo' ? (
-              <img
-                src={doc.file_url}
-                alt={doc.title ?? 'photo'}
-                className="h-full w-full rounded-lg object-cover"
-              />
-            ) : (
-              <>
-                <span className="text-2xl">📄</span>
-                <span className="line-clamp-2 text-xs text-stone-500">
-                  {doc.title ?? 'Document'}
-                </span>
-              </>
-            )}
-          </a>
+            <a
+              href={doc.file_url}
+              target="_blank"
+              rel="noreferrer"
+              className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl bg-white p-2 text-center ring-1 ring-stone-100 hover:shadow-md"
+            >
+              {type === 'photo' ? (
+                <img
+                  src={doc.file_url}
+                  alt={doc.title ?? 'photo'}
+                  className="h-full w-full rounded-lg object-cover"
+                />
+              ) : (
+                <>
+                  <span className="text-2xl">📄</span>
+                  <span className="line-clamp-2 text-xs text-stone-500">
+                    {doc.title ?? 'Document'}
+                  </span>
+                </>
+              )}
+            </a>
+          </LongPressMenu>
         ))}
       </div>
     </div>

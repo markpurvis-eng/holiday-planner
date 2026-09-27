@@ -208,6 +208,33 @@ export async function createDocument(doc: {
   return data
 }
 
+// Pulls the Storage object path back out of a public URL Supabase Storage
+// generated for it, e.g. https://<ref>.supabase.co/storage/v1/object/public/
+// documents/<path> -> <path>. Returns null for anything that doesn't match
+// this bucket's public URL shape (e.g. a future Drive-hosted document, see
+// Missing Features #39) so the caller can skip the Storage delete rather
+// than fail on it.
+function extractStoragePath(url: string, bucket: string): string | null {
+  const marker = `/storage/v1/object/public/${bucket}/`
+  const idx = url.indexOf(marker)
+  if (idx === -1) return null
+  return decodeURIComponent(url.slice(idx + marker.length))
+}
+
+// Missing Features #6: deletes the document row and, best-effort, its
+// underlying Storage object - unlike deleting the row via raw SQL (see
+// Fixed #21), which only orphans the file, this actually frees the space.
+// The Storage delete is allowed to fail silently (e.g. no matching path)
+// so a document Storage can't account for still gets removed from the app.
+export async function deleteDocument(doc: Document): Promise<void> {
+  const path = extractStoragePath(doc.file_url, 'documents')
+  if (path) {
+    await supabase.storage.from('documents').remove([path])
+  }
+  const { error } = await supabase.from('document').delete().eq('id', doc.id)
+  if (error) throw error
+}
+
 // --- Links ---
 
 export async function getLinks(tripId: string): Promise<Link[]> {
@@ -231,6 +258,12 @@ export async function createLink(link: {
   const { data, error } = await supabase.from('link').insert(link).select().single()
   if (error) throw error
   return data
+}
+
+// Missing Features #6.
+export async function deleteLink(id: string): Promise<void> {
+  const { error } = await supabase.from('link').delete().eq('id', id)
+  if (error) throw error
 }
 
 // --- Expenses (ad hoc payments: tips, souvenirs, taxis, etc.) ---

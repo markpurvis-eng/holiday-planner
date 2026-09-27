@@ -55,6 +55,7 @@ $SrcFileMap = @{
     'fx.ts'               = 'lib\fx.ts'
     'costs.ts'            = 'lib\costs.ts'
     'nextUp.ts'           = 'lib\nextUp.ts'
+    'useLongPress.ts'     = 'lib\useLongPress.ts'
     'TripDetail.tsx'      = 'pages\TripDetail.tsx'
     'AddLink.tsx'         = 'pages\AddLink.tsx'
     'Upload.tsx'          = 'pages\Upload.tsx'
@@ -72,6 +73,9 @@ $SrcFileMap = @{
     'NextUpCard.tsx'      = 'components\NextUpCard.tsx'
     'CurrencyQuickPicks.tsx' = 'components\CurrencyQuickPicks.tsx'
     'TypeQuickPicks.tsx'  = 'components\TypeQuickPicks.tsx'
+    'DocumentGroup.tsx'   = 'components\DocumentGroup.tsx'
+    'AttachedItems.tsx'   = 'components\AttachedItems.tsx'
+    'LongPressMenu.tsx'   = 'components\LongPressMenu.tsx'
     'deploy-claude-files.ps1' = 'deploy-claude-files.ps1'
 }
 

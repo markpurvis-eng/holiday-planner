@@ -12,10 +12,11 @@ import {
 import type { CostLine, CostRow } from '../lib/costs'
 import { fetchGbpRate } from '../lib/fx'
 import { formatMoney } from '../lib/format'
-import { uploadDocumentFile, createDocument, getExpenses, getDocuments } from '../lib/api'
+import { uploadDocumentFile, createDocument, getExpenses, getDocuments, deleteDocument } from '../lib/api'
 import { LoadingSpinner } from './LoadingSpinner'
 import { PaymentBadge } from './PaymentBadge'
 import { AttachedItems } from './AttachedItems'
+import { LongPressMenu } from './LongPressMenu'
 
 export function CostsTab({
   tripId,
@@ -130,6 +131,13 @@ export function CostsTab({
     if (!window.confirm(`Delete "${line.label}"? This can't be undone.`)) return
     await deleteExpenseLine(line)
     setLines((prev) => (prev ? prev.filter((l) => l.key !== line.key) : prev))
+  }
+
+  // Missing Features #6.
+  async function handleDeleteDocument(doc: Document) {
+    if (!window.confirm(`Delete "${doc.title ?? 'this document'}"? This can't be undone.`)) return
+    await deleteDocument(doc)
+    setDocuments((prev) => prev.filter((d) => d.id !== doc.id))
   }
 
   function handleAttachReceiptClick(line: CostLine) {
@@ -261,7 +269,7 @@ export function CostsTab({
             return `/add-expense?${params.toString()}`
           })()
         : null
-    return (
+    const card = (
       <div key={line.key} className={outerClass}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -345,19 +353,25 @@ export function CostsTab({
               📷 Add receipt
             </button>
           )}
-          {line.kind === 'expense' && !locked && (
-            <button
-              type="button"
-              onClick={() => handleDeleteExpense(line)}
-              className="text-xs text-stone-400 hover:text-red-500"
-            >
-              Delete
-            </button>
-          )}
         </div>
-        <AttachedItems documents={attachedDocs} links={[]} />
+        <AttachedItems documents={attachedDocs} links={[]} onDeleteDocument={handleDeleteDocument} />
         {extra}
       </div>
+    )
+
+    // Missing Features #6: ad hoc expense lines are the only Costs-tab rows
+    // that can be deleted at all (bookings/itinerary items are deliberately
+    // excluded, see the roadmap) - long-press the whole card instead of a
+    // permanently-visible Delete button.
+    return line.kind === 'expense' && !locked ? (
+      <LongPressMenu
+        key={line.key}
+        actions={[{ label: 'Delete', destructive: true, onSelect: () => handleDeleteExpense(line) }]}
+      >
+        {card}
+      </LongPressMenu>
+    ) : (
+      card
     )
   }
 

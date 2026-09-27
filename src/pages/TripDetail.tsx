@@ -10,11 +10,14 @@ import {
   getTodos,
   createTodo,
   toggleTodo,
+  deleteDocument,
+  deleteLink,
 } from '../lib/api'
 import type { Booking, Document, ItineraryItem, Link as LinkType, Todo, Trip } from '../lib/types'
 import { TabBar } from '../components/TabBar'
 import { DocumentGroup } from '../components/DocumentGroup'
 import { AttachedItems } from '../components/AttachedItems'
+import { LongPressMenu } from '../components/LongPressMenu'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { formatMoney, formatTime, formatDayAbbrev, formatDate, daysUntil, todayDateString } from '../lib/format'
 import { WeatherForecast } from '../components/WeatherForecast'
@@ -182,6 +185,19 @@ export default function TripDetail() {
   async function handleToggleTodo(todo: Todo) {
     const updated = await toggleTodo(todo.id, !todo.done)
     setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+  }
+
+  // Missing Features #6.
+  async function handleDeleteDocument(doc: Document) {
+    if (!window.confirm(`Delete "${doc.title ?? 'this document'}"? This can't be undone.`)) return
+    await deleteDocument(doc)
+    setDocuments((prev) => prev.filter((d) => d.id !== doc.id))
+  }
+
+  async function handleDeleteLink(link: LinkType) {
+    if (!window.confirm(`Delete "${link.label}"? This can't be undone.`)) return
+    await deleteLink(link.id)
+    setLinks((prev) => prev.filter((l) => l.id !== link.id))
   }
 
   if (loading) return <LoadingSpinner label="Loading trip…" />
@@ -399,6 +415,8 @@ export default function TripDetail() {
                 <AttachedItems
                   documents={documents.filter((d) => d.booking_id === b.id)}
                   links={links.filter((l) => l.booking_id === b.id)}
+                  onDeleteDocument={handleDeleteDocument}
+                  onDeleteLink={handleDeleteLink}
                 />
                 <div className="mt-2 flex justify-end">
                   <Link
@@ -526,6 +544,8 @@ export default function TripDetail() {
                     <AttachedItems
                       documents={documents.filter((d) => d.itinerary_item_id === item.id)}
                       links={links.filter((l) => l.itinerary_item_id === item.id)}
+                      onDeleteDocument={handleDeleteDocument}
+                      onDeleteLink={handleDeleteLink}
                     />
                     <div className="mt-2 flex justify-end gap-3">
                       {trip.total_cost_locked_at == null && (
@@ -572,10 +592,23 @@ export default function TripDetail() {
                     <DocumentGroup
                       type="confirmation"
                       documents={group.items.filter((d) => d.type === 'confirmation')}
+                      onDelete={handleDeleteDocument}
                     />
-                    <DocumentGroup type="photo" documents={group.items.filter((d) => d.type === 'photo')} />
-                    <DocumentGroup type="receipt" documents={group.items.filter((d) => d.type === 'receipt')} />
-                    <DocumentGroup type="guide" documents={group.items.filter((d) => d.type === 'guide')} />
+                    <DocumentGroup
+                      type="photo"
+                      documents={group.items.filter((d) => d.type === 'photo')}
+                      onDelete={handleDeleteDocument}
+                    />
+                    <DocumentGroup
+                      type="receipt"
+                      documents={group.items.filter((d) => d.type === 'receipt')}
+                      onDelete={handleDeleteDocument}
+                    />
+                    <DocumentGroup
+                      type="guide"
+                      documents={group.items.filter((d) => d.type === 'guide')}
+                      onDelete={handleDeleteDocument}
+                    />
                   </div>
                 </div>
               ))}
@@ -603,19 +636,29 @@ export default function TripDetail() {
                   </div>
                   <div className="space-y-2">
                     {group.items.map((link) => (
-                      <a
+                      <LongPressMenu
                         key={link.id}
-                        href={link.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100 hover:shadow-md"
+                        actions={[
+                          {
+                            label: 'Delete',
+                            destructive: true,
+                            onSelect: () => handleDeleteLink(link),
+                          },
+                        ]}
                       >
-                        <span className="text-xl">🔗</span>
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-stone-800">{link.label}</p>
-                          <p className="truncate text-sm text-stone-500">{link.url}</p>
-                        </div>
-                      </a>
+                        <a
+                          href={link.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100 hover:shadow-md"
+                        >
+                          <span className="text-xl">🔗</span>
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-stone-800">{link.label}</p>
+                            <p className="truncate text-sm text-stone-500">{link.url}</p>
+                          </div>
+                        </a>
+                      </LongPressMenu>
                     ))}
                   </div>
                 </div>

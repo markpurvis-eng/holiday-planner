@@ -378,17 +378,36 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   only a trip switch the person makes *after* landing on the page resets
   attach mode, same as before presets existed.
 
+- **Long-press delete for Documents/Links and ad hoc expenses (Missing
+  Features #6)**: `src/lib/useLongPress.ts` (generic touch+mouse long-press
+  detection, 500ms, cancels on movement) and `src/components/LongPressMenu.tsx`
+  (wraps any children, shows a bottom action sheet on long-press) are the one
+  shared implementation. Wrapping a child that's an `<a>` suppresses the
+  anchor's own click/navigation via a capturing click handler on the wrapper
+  once a long-press has fired, so a long-press doesn't also navigate when the
+  finger/mouse lifts. Wired into: `DocumentGroup.tsx` (Documents tab grid
+  cards), the flat Links-tab card list in `TripDetail.tsx`, and every
+  `AttachedItems.tsx` instance (booking cards, itinerary cards, Costs tab
+  lines) via its new optional `onDeleteDocument`/`onDeleteLink` props. Ad hoc
+  expense lines on the Costs tab (`CostsTab.tsx`) had the app's only
+  previously-visible "Delete" button — that's now the same long-press gesture
+  on the whole card instead, removed once a trip is locked (unchanged
+  behaviour, just a different trigger). New `deleteDocument()`/`deleteLink()`
+  in `api.ts`: `deleteDocument()` also best-effort removes the underlying
+  Storage object (parsed back out of the public URL) rather than leaving it
+  orphaned the way a raw-SQL row delete did (see the roadmap's Fixed #21).
+  **Deliberately excluded**: bookings/itinerary items (no real delete exists
+  for these at all, by design — see the roadmap for why) and Trip Types in
+  Settings. **Not built in this pass**: re-pointing an attachment at a
+  different Trip/Booking/Itinerary item — the roadmap's original ask
+  mentioned this alongside delete, but it needs its own attach-mode-picker UI
+  inside the action sheet and was descoped to ship delete first; worth
+  revisiting as a fast-follow on the same `LongPressMenu`.
+
 ## Ready to build / open items
 
 - The installable icon is SVG-only (see above) — a real PNG icon set is a good
   follow-up, not required for functionality.
-- The Documents/Links tabs on TripDetail still group everything by document type
-  only (a flat, trip-wide index) rather than distinguishing trip-level items from
-  booking/itinerary-attached ones. That distinction IS surfaced elsewhere though:
-  `src/components/AttachedItems.tsx` renders, inline on each booking card
-  (Bookings tab) and each itinerary item card (Itinerary tab), the documents/links
-  whose `booking_id` / `itinerary_item_id` match that specific card — filtered
-  client-side from the same `documents`/`links` arrays already fetched for the
-  trip (no extra query). This was the actual point of the attachment feature:
-  seeing what's attached to *that specific booking or reservation*, not just a
-  flat unified list.
+- Re-pointing a Document/Link at a different Trip/Booking/Itinerary item
+  without re-uploading (the other half of Missing Features #6, alongside the
+  long-press delete built above) — not yet built.
