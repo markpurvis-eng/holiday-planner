@@ -12,6 +12,7 @@ import AllCosts from './pages/AllCosts'
 import AddExpense from './pages/AddExpense'
 import EditBooking from './pages/EditBooking'
 import EditItineraryItem from './pages/EditItineraryItem'
+import Search from './pages/Search'
 
 function Shell({ children }: { children: ReactNode }) {
   return (
@@ -113,6 +114,16 @@ export default function App() {
             <ProtectedRoute>
               <Shell>
                 <EditItineraryItem />
+              </Shell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/search"
+          element={
+            <ProtectedRoute>
+              <Shell>
+                <Search />
               </Shell>
             </ProtectedRoute>
           }

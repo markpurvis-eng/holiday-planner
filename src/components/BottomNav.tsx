@@ -37,6 +37,10 @@ export function BottomNav() {
         <span className="text-xl">💰</span>
         Costs
       </NavLink>
+      <NavLink to={`/search${tripSuffix}`} className={linkClass}>
+        <span className="text-xl">🔍</span>
+        Search
+      </NavLink>
       <NavLink to="/settings" className={linkClass}>
         <span className="text-xl">⚙️</span>
         Settings

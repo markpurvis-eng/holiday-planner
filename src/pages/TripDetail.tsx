@@ -673,6 +673,7 @@ export default function TripDetail() {
             bookings={bookings}
             itinerary={itinerary}
             locked={trip.total_cost_locked_at != null}
+            highlightKey={highlightId}
           />
         )}
 

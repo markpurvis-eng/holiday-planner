@@ -41,11 +41,22 @@ export function CostsTab({
   bookings,
   itinerary,
   locked = false,
+  highlightKey = null,
 }: {
   tripId: string
   bookings: Booking[]
   itinerary: ItineraryItem[]
   locked?: boolean
+  // A CostRow key (a booking/itinerary_item line's own key, or the
+  // trip-level bundle's key — never an individual nested expense's key,
+  // since Search.tsx always targets the containing card) to scroll to and
+  // highlight once this tab's own data has loaded. Captured once into
+  // `activeHighlight` below rather than tracked live: TripDetail clears
+  // its own `?highlight=` URL param ~2.5s after *it* mounts (see its
+  // scrollToItem effect), which would otherwise null this prop out before
+  // CostsTab's own async load (getExpenses/ensureLockedRates/live FX
+  // rates) has even finished.
+  highlightKey?: string | null
 }) {
   const [lines, setLines] = useState<CostLine[] | null>(null)
   const [documents, setDocuments] = useState<Document[]>([])
@@ -56,6 +67,8 @@ export function CostsTab({
   const [savingKey, setSavingKey] = useState<string | null>(null)
   const [receiptStatus, setReceiptStatus] = useState<Map<string, 'uploading' | 'done' | 'error'>>(new Map())
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
+  const [activeHighlight, setActiveHighlight] = useState<string | null>(() => highlightKey)
+  const [hasScrolledToHighlight, setHasScrolledToHighlight] = useState(false)
   const pendingReceiptLine = useRef<CostLine | null>(null)
   const receiptInputRef = useRef<HTMLInputElement>(null)
 
@@ -70,6 +83,45 @@ export function CostsTab({
       return next
     })
   }
+
+  // Scroll to and highlight a card arriving from Search (or any future
+  // caller passing highlightKey). The target card — a booking/itinerary
+  // line's own top-level card, or the trip-level "Ad hoc expenses" bundle
+  // card — is always rendered regardless of collapse state (only the
+  // content *inside* a group is conditionally rendered), so this doesn't
+  // need the two-pass "expand, wait a render, then scroll" dance: expanding
+  // whatever group contains the actual match and finding the target's own
+  // id can happen in the same effect run. Runs once lines have loaded, and
+  // again if expandedKeys changes for some unrelated reason, but bails
+  // immediately via hasScrolledToHighlight once it's done its job.
+  useEffect(() => {
+    if (!lines || !activeHighlight || hasScrolledToHighlight) return
+    const rows = groupCostLines(lines)
+    const matchedRow = rows.find((row) =>
+      row.kind === 'expenseBundle' ? row.key === activeHighlight : row.line.key === activeHighlight
+    )
+    if (matchedRow) {
+      if (matchedRow.kind === 'expenseBundle') {
+        setExpandedKeys((prev) => new Set(prev).add(matchedRow.key))
+      } else if (matchedRow.nested.length > 0) {
+        setExpandedKeys((prev) => new Set(prev).add(`${matchedRow.line.key}-adhoc`))
+      }
+    }
+    const el = document.getElementById(`item-${activeHighlight}`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setHasScrolledToHighlight(true)
+    }
+  }, [lines, activeHighlight, hasScrolledToHighlight])
+
+  // Fades the highlight ring a couple of seconds after it's actually been
+  // scrolled to (not from mount — this tab's own data can take a moment to
+  // load), matching the ~2.5s the Bookings/Itinerary tabs' highlight uses.
+  useEffect(() => {
+    if (!hasScrolledToHighlight) return
+    const timeout = setTimeout(() => setActiveHighlight(null), 2500)
+    return () => clearTimeout(timeout)
+  }, [hasScrolledToHighlight])
 
   useEffect(() => {
     let cancelled = false
@@ -279,9 +331,12 @@ export function CostsTab({
           : line.kind === 'expense'
             ? documents.filter((d) => d.expense_id === line.id)
             : []
+    const isHighlighted = variant === 'card' && line.key === activeHighlight
     const outerClass =
       variant === 'card'
-        ? 'rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100'
+        ? `rounded-2xl bg-white p-4 shadow-sm transition-shadow ${
+            isHighlighted ? 'ring-2 ring-teal-400' : 'ring-1 ring-stone-100'
+          }`
         : 'border-t border-stone-100 pt-3 first:border-t-0 first:pt-0'
     // "+" pre-filled ad hoc expense (Missing Features #43): only on a
     // booking/itinerary line's own top-level card, not the plain/nested
@@ -302,7 +357,7 @@ export function CostsTab({
           })()
         : null
     const card = (
-      <div key={line.key} className={outerClass}>
+      <div key={line.key} id={variant === 'card' ? `item-${line.key}` : undefined} className={outerClass}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className="truncate font-medium text-stone-800">{line.label}</p>
@@ -463,8 +518,15 @@ export function CostsTab({
   function renderBundleCard(key: string, label: string, bundleLines: CostLine[]) {
     const total = bundleLines.reduce((sum, l) => sum + gbpValue(l).value, 0)
     const isOpen = expandedKeys.has(key)
+    const isHighlighted = key === activeHighlight
     return (
-      <div key={key} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100">
+      <div
+        key={key}
+        id={`item-${key}`}
+        className={`rounded-2xl bg-white p-4 shadow-sm transition-shadow ${
+          isHighlighted ? 'ring-2 ring-teal-400' : 'ring-1 ring-stone-100'
+        }`}
+      >
         <button
           type="button"
           onClick={() => toggleExpanded(key)}

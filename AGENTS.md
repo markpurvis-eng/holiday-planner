@@ -440,6 +440,61 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   `touch-action` styles plus an `onContextMenu` preventDefault to the sheet's
   overlay, panel, and every button.
 
+- **Trip-scoped Search page (28 Sep 2026)**: `src/pages/Search.tsx` (route
+  `/search`, new 6th `BottomNav` entry) added to solve "a lot of scrolling to
+  find a specific cost" — Mark first asked about search on the Costs tab
+  alone, then a fully app-wide search-everything view, before settling on
+  this middle ground: one trip at a time, reachable from anywhere.
+  **Scope, deliberately not app-wide**: a trip `<select>` (from `getTrips()`)
+  defaults to whatever trip Search was opened from, reusing the same
+  `?trip=`-from-URL-or-path convention `BottomNav` already uses for
+  Upload/Link — no new "current trip" concept needed. Search only fetches
+  that one trip's `getBookings()`/`getItinerary()`/`getExpenses()` once a
+  trip is picked; there's still no aggregate "all trips" fetch anywhere in
+  the app outside `AllCosts.tsx`'s own per-trip fan-out, and this doesn't
+  add one. Filtering is plain client-side substring matching, live as you
+  type (no debounce needed — it's synchronous over already-loaded arrays).
+  **Three result sections**: Bookings (`provider_name`) and Itinerary
+  (`venue`, falling back to `type`) match on title only, not
+  `confirmation_ref`/`extracted_details`/`notes` (Mark's choice — keeps
+  results scannable, and "quickly find a card" was about the title you'd
+  recognise at a glance). Both link straight to
+  `/trips/:id?tab=<bookings|itinerary>&highlight=<id>`, reusing the exact
+  tab+highlight contract `NextUpCard`/the itinerary booking-markers already
+  established — no new jump mechanism. **Costs reuses
+  `buildCostLines()`/`buildExpenseCostLines()`/`groupCostLines()` from
+  `costs.ts` directly** rather than re-deriving its own notion of a "cost
+  card", so a search matches exactly what the Costs tab itself would show
+  as one card: the line's own label, or any ad hoc expense nested under it
+  (e.g. searching "hockey" surfaces the "Causeway pub" expense attached to
+  a hockey booking/itinerary card) — the trip-level "Ad hoc expenses"
+  bundle is searched the same way, matching on its own lines even though
+  it has no single parent card. Only the specific expense labels that
+  matched are shown under a card's result (not every expense attached to
+  it), so an unrelated nested expense doesn't clutter an otherwise-relevant
+  hit. **Scroll-to/highlight added same day (v1.27.1)**: initially shipped
+  without this (Mark's choice, to ship the rest of Search first) — see
+  Missing Features #58 for why it was tricky: `CostsTab.tsx` loads its
+  `CostLine[]` asynchronously (`getExpenses`/`ensureLockedRates`/live FX
+  rates), well after `TripDetail`'s own generic highlight-scroll effect
+  (which clears `?highlight=` from the URL ~2.5s after *it* mounts) would
+  have already tried and found nothing. `CostsTab` now takes its own
+  `highlightKey` prop, captured once into local state (`activeHighlight`)
+  on mount rather than read live from the prop, so it survives the
+  parent's URL cleanup finishing before this tab's own data has. A new
+  `id="item-<key>"` anchor on every top-level line card and the trip-level
+  bundle card (never on an individual nested expense — a Search hit's
+  `CostMatch.key` is always the containing card's key, whether the match
+  came from the card's own label or an expense nested/bundled under it)
+  means the target card is always present in the DOM regardless of
+  collapse state, so expanding whatever group contains the actual match
+  and scrolling to the target's own id can happen in the same effect pass
+  — no two-pass "expand, wait a render, retry" needed. Highlight ring
+  fades ~2.5s after the scroll actually happens (not from mount), matching
+  the Bookings/Itinerary convention. `Search.tsx`'s Costs result links now
+  carry `&highlight=<match.key>` instead of just `?tab=costs`.
+  `APP_VERSION` bumped to v1.27.1.
+
 ## Ready to build / open items
 
 - The installable icon is SVG-only (see above) — a real PNG icon set is a good
