@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import type { TimelineEntry } from '../lib/itineraryTimeline'
 import { nextUpLabel, nextUpLinkTarget } from '../lib/nextUp'
 import { formatDate, formatTime } from '../lib/format'
+import { resolveEntryTimezone, homeTimeLabel } from '../lib/timezone'
 
 // The "What's next" card shown on the Dashboard for whichever trip is
 // currently underway (Missing Features item 13). Tapping it jumps straight
@@ -12,6 +13,15 @@ export function NextUpCard({ tripId, entry }: { tripId: string; entry: TimelineE
   const { tab, id } = nextUpLinkTarget(entry)
   const dateLabel = formatDate(entry.date, { weekday: 'short', day: 'numeric', month: 'short' })
   const timeLabel = entry.time ? formatTime(entry.time) : null
+  // Home-equivalent time (Missing Features #16) — this is arguably the
+  // single most useful spot for it: the moment you're most likely to be
+  // confused about what time it actually is is right before the next
+  // thing on the trip happens. Only shows when this entry's own
+  // booking/itinerary_item has coordinates — no trip-level fallback (see
+  // resolveEntryTimezone's comment for why that was mislabelling things
+  // like an outbound flight's UK departure marker).
+  const tz = entry.time ? resolveEntryTimezone(entry) : null
+  const homeLabel = tz && entry.time ? homeTimeLabel(entry.date, entry.time, tz) : null
 
   return (
     <Link
@@ -27,6 +37,7 @@ export function NextUpCard({ tripId, entry }: { tripId: string; entry: TimelineE
             {subtitle} · {dateLabel}
             {timeLabel ? ` · ${timeLabel}` : ''}
           </p>
+          {homeLabel && <p className="truncate text-xs text-teal-200">{homeLabel}</p>}
         </div>
       </div>
     </Link>

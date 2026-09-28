@@ -541,6 +541,65 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   bare-call behaviour is the same fixed format, the PDF header calls
   `formatDate()` directly instead. `APP_VERSION` bumped to v1.27.4.
 
+- **Local vs home time on itinerary items (28 Sep 2026)**: Missing Features
+  #16 — a booking/itinerary-item time now shows a small home-equivalent
+  ("09:30 UK") underneath it whenever the destination is in a different
+  timezone, so a Vietnam/Canada trip doesn't leave you doing the maths
+  yourself to work out what time it is back home. **No new schema/column**:
+  rather than adding a `timezone` field (which would need another manual
+  Supabase SQL step), `src/lib/timezone.ts`'s `resolveEntryTimezone()`
+  derives it from coordinates that already exist —
+  `booking.destination_lat`/`lng` or `itinerary_item.destination_lat`/`lng`
+  for that specific leg of a multi-city trip, falling back to the trip's own
+  single anchor point (`trip.destination_lat`/`lng`) — the exact same
+  fields and fallback the weather feature already relies on
+  (`findLocationForDate`/`findItineraryLocationForDate` in `weather.ts`).
+  The `tz-lookup` package (new dependency, ~30KB gzipped, pure JS/offline —
+  a static lat/lng-to-IANA-zone lookup table, no network call) turns
+  coordinates into an IANA zone name; "home" is hardcoded as
+  `Europe/London` rather than read from the device, so the label means the
+  same thing whether Mark checks it from his UK phone before leaving or
+  from the destination itself. `convertWallTime()` does the actual
+  timezone maths — a two-pass DST-aware wall-clock conversion using
+  `Intl.DateTimeFormat` offsets (no date library needed) — and returns a
+  day offset too, so a time that lands on the previous/next day at home
+  shows "(-1 day)"/"(+1 day)" rather than a bare time that looks wrong.
+  `homeTimeLabel()` returns `null` outright when the resolved zone matches
+  home, which is the common case today since most bookings/itinerary items
+  have no coordinates backfilled at all yet (same limitation the weather
+  feature already has — see "the `destination_lat`/`lng` fields
+  themselves still have no in-app edit UI" above). Wired into three spots
+  that already render a time: `TripDetail.tsx`'s Itinerary tab (both
+  itinerary items and booking begin/end markers, via a shared
+  `homeTimeFor()` helper), and the Dashboard's `NextUpCard` — arguably the
+  single most useful spot for it, since that's the moment you're most
+  likely to actually be confused about what time it is. `NextUpCard` now
+  takes a `trip` prop (previously just `tripId`/`entry`) to have the
+  fallback coordinates available. `APP_VERSION` bumped to v1.27.5.
+  **Bug fix, same day (v1.27.6) — dropped the trip-level fallback
+  entirely.** Mark reported the taxi-to-airport itinerary item and the
+  outbound UK→Canada flight's own departure marker were both showing a
+  Canada-equivalent time even though they're physically in the UK. Cause:
+  `resolveEntryTimezone()`'s fallback to `trip.destination_lat`/`lng`
+  (mirroring the weather feature's fallback) was applying the trip's
+  overall destination to any booking/itinerary_item with no coordinates
+  of its own — fine for weather (a wrong day's forecast is a minor miss),
+  wrong here (an outright mislabelled time). Flights in particular are
+  deliberately left with NO coordinates at all (see weather.ts's own
+  comment — a single lat/lng can't represent both ends of a journey), so
+  every flight's begin/end markers, and anything else uncoordinated,
+  were silently inheriting the trip's destination timezone regardless of
+  where that specific leg actually was. Fix: `resolveEntryTimezone()` no
+  longer takes a `trip` argument or falls back to it at all — only an
+  entry's own `destination_lat`/`lng` is used, so an uncoordinated entry
+  now correctly shows no home-time label rather than a wrong one.
+  `NextUpCard` no longer needs its `trip` prop either (reverted back to
+  just `tripId`/`entry`, and `Dashboard.tsx`'s `nextUp` state back to not
+  carrying the trip). **Trade-off accepted**: fewer labels appear overall
+  now (an itinerary item genuinely at the destination but missing its own
+  coordinates won't get one either) — deliberately fewer-but-correct over
+  more-but-sometimes-wrong. `APP_VERSION` bumped to v1.27.6.
+
 ## Ready to build / open items
 
 - The installable icon is SVG-only (see above) — a real PNG icon set is a good

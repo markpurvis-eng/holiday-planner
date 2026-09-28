@@ -26,6 +26,8 @@ import { resolveTodaysLocation } from '../lib/weather'
 import { getHideCancelledItems } from '../lib/settings'
 import { PaymentBadge } from '../components/PaymentBadge'
 import { mergeItineraryTimeline } from '../lib/itineraryTimeline'
+import type { TimelineEntry } from '../lib/itineraryTimeline'
+import { resolveEntryTimezone, homeTimeLabel } from '../lib/timezone'
 import { buildAttachmentGroups } from '../lib/attachmentGroups'
 import { CostsTab } from '../components/CostsTab'
 
@@ -230,6 +232,21 @@ export default function TripDetail() {
   // payment status doesn't have a sensible meaning for it.
   const bookingsForTimeline = bookings.filter((b) => !hideCancelled || !b.cancelled)
   const timeline = mergeItineraryTimeline(bookingsForTimeline, visibleItinerary)
+
+  // Home-equivalent time label under a timeline entry's own time, e.g.
+  // "09:30 UK" — only appears when the entry's own booking/itinerary_item
+  // has coordinates resolving to a different timezone than home (Missing
+  // Features #16). Deliberately does NOT fall back to the trip's own
+  // anchor point (see resolveEntryTimezone's comment) — that was
+  // mislabelling coordinate-less entries still in the UK (a taxi to the
+  // airport, the outbound flight's own departure marker) as if already at
+  // the destination. Most bookings/itinerary items have no coordinates at
+  // all yet, so this is null far more often than not.
+  function homeTimeFor(entry: TimelineEntry): string | null {
+    if (!entry.time) return null
+    const tz = resolveEntryTimezone(entry)
+    return tz ? homeTimeLabel(entry.date, entry.time, tz) : null
+  }
 
   // Jumps to and highlights a specific booking/itinerary-item card on its
   // own tab. `tab` is local state (only read from the URL once, on mount),
@@ -473,6 +490,7 @@ export default function TripDetail() {
                       <div>{formatDayAbbrev(entry.date)}</div>
                       <div>{formatDate(entry.date, { day: 'numeric', month: 'short' })}</div>
                       {entry.time && <div>{formatTime(entry.time)}</div>}
+                      {homeTimeFor(entry) && <div className="text-[11px] text-stone-400">{homeTimeFor(entry)}</div>}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
@@ -501,6 +519,7 @@ export default function TripDetail() {
                     <div>{formatDayAbbrev(item.date)}</div>
                     <div>{formatDate(item.date, { day: 'numeric', month: 'short' })}</div>
                     {item.time && <div>{formatTime(item.time)}</div>}
+                    {homeTimeFor(entry) && <div className="text-[11px] text-stone-400">{homeTimeFor(entry)}</div>}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
