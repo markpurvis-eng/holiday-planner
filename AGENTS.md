@@ -162,6 +162,30 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   plus a Grand total, and a small inline rate-edit affordance per line for
   the manual-override case (a currency Frankfurter doesn't cover, or Mark's
   card's actual applied rate).
+  **FX editor with a fixed foreign amount (28 Sep 2026)**: the
+  manual-override affordance above originally only let Mark edit the rate
+  — fine for a card that states its applied rate, but Halifax credit card
+  statements show only the foreign-currency amount and the GBP amount
+  actually charged, never the rate itself, so there was no way to enter
+  what the statement actually says. First attempt let all three of
+  foreign amount / rate / GBP be edited, with whichever field wasn't one
+  of the two most-recently-touched getting recomputed — technically
+  correct but had a rough edge (editing only one field on first open did
+  nothing, since there was no second edited field yet to compute from,
+  which read as broken) and covered a case (correcting the foreign
+  amount) Mark pointed out doesn't actually happen — he always knows
+  exactly what he paid in the foreign currency, so it should be fixed,
+  not one of the variables. Simplified: `CostsTab.tsx`'s edit form now
+  shows the foreign amount read-only and has just two editable fields,
+  rate and GBP, each recalculating the other directly
+  (`computeFxFromRate()`/`computeRateFromGbp()`) — no ordering/tracking
+  needed, and no "nothing happens on the first edit" gap, since either
+  field alone is always enough to derive the other against the fixed
+  foreign amount. `src/lib/costs.ts`'s `setManualFx(line, { cost, rate })`
+  (added in the three-field attempt, to let a Costs-tab edit correct the
+  underlying foreign-currency amount too, not just its GBP conversion)
+  is kept as-is for that reason, but this editor now always passes
+  `line.cost` back unchanged.
 
 - **Total Costs dashboard, across all trips**: `src/pages/AllCosts.tsx`
   (route `/costs`, its own bottom-nav entry) lists every trip — active and

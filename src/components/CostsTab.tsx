@@ -5,7 +5,7 @@ import {
   buildCostLines,
   buildExpenseCostLines,
   ensureLockedRates,
-  setManualRate,
+  setManualFx,
   deleteExpenseLine,
   groupCostLines,
 } from '../lib/costs'
@@ -17,6 +17,24 @@ import { LoadingSpinner } from './LoadingSpinner'
 import { PaymentBadge } from './PaymentBadge'
 import { AttachedItems } from './AttachedItems'
 import { LongPressMenu } from './LongPressMenu'
+
+// FX editor (Missing Features — Halifax card statements only show the
+// foreign amount and the GBP amount actually charged, never the rate
+// itself, so forcing "rate" as the one editable field didn't cover that
+// case). The foreign-currency amount is fixed — it's whatever Mark
+// actually paid, never in doubt — so only rate and GBP are editable, each
+// recalculating the other: rate x foreign = GBP, GBP / foreign = rate.
+type FxEditState = { rate: string; gbp: string }
+
+function computeFxFromRate(rate: string, foreign: number): string {
+  const parsed = Number(rate)
+  return Number.isFinite(parsed) && parsed > 0 ? (foreign * parsed).toFixed(2) : ''
+}
+
+function computeRateFromGbp(gbp: string, foreign: number): string {
+  const parsed = Number(gbp)
+  return Number.isFinite(parsed) && foreign > 0 ? (parsed / foreign).toFixed(4) : ''
+}
 
 export function CostsTab({
   tripId,
@@ -34,7 +52,7 @@ export function CostsTab({
   const [liveRates, setLiveRates] = useState<Map<string, number>>(new Map())
   const [error, setError] = useState(false)
   const [editingKey, setEditingKey] = useState<string | null>(null)
-  const [editValue, setEditValue] = useState('')
+  const [fx, setFx] = useState<FxEditState>({ rate: '', gbp: '' })
   const [savingKey, setSavingKey] = useState<string | null>(null)
   const [receiptStatus, setReceiptStatus] = useState<Map<string, 'uploading' | 'done' | 'error'>>(new Map())
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
@@ -105,20 +123,34 @@ export function CostsTab({
     return { value: line.cost * (live ?? 0), locked: false }
   }
 
-  async function handleStartEdit(line: CostLine) {
+  function handleStartEdit(line: CostLine) {
     setEditingKey(line.key)
-    setEditValue(line.fxRateToGbp != null ? String(line.fxRateToGbp) : String(liveRates.get(line.currency) ?? ''))
+    const rate = line.currency === 'GBP' ? 1 : (line.fxRateToGbp ?? liveRates.get(line.currency) ?? null)
+    setFx({
+      rate: rate != null ? String(rate) : '',
+      gbp: rate != null ? (line.cost * rate).toFixed(2) : '',
+    })
+  }
+
+  function handleRateChange(line: CostLine, value: string) {
+    setFx({ rate: value, gbp: computeFxFromRate(value, line.cost) })
+  }
+
+  function handleGbpChange(line: CostLine, value: string) {
+    setFx({ rate: computeRateFromGbp(value, line.cost), gbp: value })
   }
 
   async function handleSaveEdit(line: CostLine) {
-    const parsed = Number(editValue)
-    if (!Number.isFinite(parsed) || parsed <= 0) return
+    const rate = Number(fx.rate)
+    if (!Number.isFinite(rate) || rate <= 0) return
     setSavingKey(line.key)
     try {
-      const { rate, lockedAt } = await setManualRate(line, parsed)
+      const result = await setManualFx(line, { cost: line.cost, rate })
       setLines((prev) =>
         prev
-          ? prev.map((l) => (l.key === line.key ? { ...l, fxRateToGbp: rate, fxRateLockedAt: lockedAt } : l))
+          ? prev.map((l) =>
+              l.key === line.key ? { ...l, fxRateToGbp: result.rate, fxRateLockedAt: result.lockedAt } : l
+            )
           : prev
       )
       setEditingKey(null)
@@ -287,17 +319,42 @@ export function CostsTab({
           </div>
           <p className="shrink-0 text-sm text-stone-500">{formatMoney(line.cost, line.currency)}</p>
         </div>
-        <div className="mt-1 flex items-center justify-between gap-3">
-          {isEditing ? (
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                step="0.0001"
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                className="w-24 rounded-lg border border-stone-200 px-2 py-1 text-sm outline-none focus:border-teal-500"
-                autoFocus
-              />
+        {isEditing ? (
+          <div className="mt-1 rounded-lg bg-stone-50 p-2.5">
+            <p className="mb-1.5 text-[11px] text-stone-400">
+              Enter the rate or the GBP amount charged — the other fills in automatically (handy
+              when a card statement shows the amount charged but not the rate)
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] uppercase text-stone-400">{line.currency}</span>
+                <p className="rounded-lg border border-transparent px-2 py-1 text-sm text-stone-500">
+                  {line.cost}
+                </p>
+              </div>
+              <label className="flex flex-col gap-0.5">
+                <span className="text-[10px] uppercase text-stone-400">Rate</span>
+                <input
+                  type="number"
+                  step="0.0001"
+                  value={fx.rate}
+                  onChange={(e) => handleRateChange(line, e.target.value)}
+                  className="w-full rounded-lg border border-stone-200 px-2 py-1 text-sm outline-none focus:border-teal-500"
+                  autoFocus
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className="text-[10px] uppercase text-stone-400">GBP</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={fx.gbp}
+                  onChange={(e) => handleGbpChange(line, e.target.value)}
+                  className="w-full rounded-lg border border-stone-200 px-2 py-1 text-sm outline-none focus:border-teal-500"
+                />
+              </label>
+            </div>
+            <div className="mt-2 flex justify-end gap-3">
               <button
                 type="button"
                 onClick={() => handleSaveEdit(line)}
@@ -314,25 +371,29 @@ export function CostsTab({
                 Cancel
               </button>
             </div>
-          ) : locked ? (
-            <span className="text-xs text-stone-400">
-              rate: {line.currency === 'GBP' ? '1.0000' : (line.fxRateToGbp ?? liveRates.get(line.currency))?.toFixed(4)}
-            </span>
-          ) : (
-            <button
-              type="button"
-              onClick={() => handleStartEdit(line)}
-              className="text-xs text-stone-400 hover:text-teal-600"
-            >
-              rate: {line.currency === 'GBP' ? '1.0000' : (line.fxRateToGbp ?? liveRates.get(line.currency))?.toFixed(4)}
-              {' · edit'}
-            </button>
-          )}
-          <p className="text-sm font-medium text-stone-700">
-            {rateLocked ? '' : '≈ '}
-            {formatMoney(value, 'GBP')}
-          </p>
-        </div>
+          </div>
+        ) : (
+          <div className="mt-1 flex items-center justify-between gap-3">
+            {locked ? (
+              <span className="text-xs text-stone-400">
+                rate: {line.currency === 'GBP' ? '1.0000' : (line.fxRateToGbp ?? liveRates.get(line.currency))?.toFixed(4)}
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleStartEdit(line)}
+                className="text-xs text-stone-400 hover:text-teal-600"
+              >
+                rate: {line.currency === 'GBP' ? '1.0000' : (line.fxRateToGbp ?? liveRates.get(line.currency))?.toFixed(4)}
+                {' · edit'}
+              </button>
+            )}
+            <p className="text-sm font-medium text-stone-700">
+              {rateLocked ? '' : '≈ '}
+              {formatMoney(value, 'GBP')}
+            </p>
+          </div>
+        )}
         <div className="mt-2 flex items-center justify-end gap-3">
           {addExpenseHref && (
             <Link to={addExpenseHref} className="text-xs text-stone-400 hover:text-teal-600">

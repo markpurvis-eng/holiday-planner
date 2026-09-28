@@ -128,14 +128,29 @@ export async function ensureLockedRates(lines: CostLine[]): Promise<CostLine[]> 
   })
 }
 
-// Manual override: writes a rate the person typed in directly, stamping
+// Manual override: writes a foreign-currency cost and a rate the person
+// typed in directly (or the app derived from a two-out-of-three
+// foreign/rate/GBP entry — see CostsTab's editor), stamping
 // fx_rate_locked_at so it behaves exactly like a normal locked rate from
-// here on (covers "use my card's actual applied rate instead of
-// Frankfurter's", or a currency Frankfurter doesn't cover).
-export async function setManualRate(line: CostLine, rate: number): Promise<{ rate: number; lockedAt: string }> {
+// here on. Covers "use my card's actual applied rate instead of
+// Frankfurter's", a currency Frankfurter doesn't cover, and — since Halifax
+// (and presumably other UK card statements) only shows the foreign amount
+// and the GBP amount actually charged, never the rate itself — correcting
+// the foreign-currency amount too, not just the rate.
+export async function setManualFx(
+  line: CostLine,
+  { cost, rate }: { cost: number; rate: number }
+): Promise<{ cost: number; rate: number; lockedAt: string }> {
   const lockedAt = new Date().toISOString()
-  await writeLockedRate(line, rate, lockedAt)
-  return { rate, lockedAt }
+  const rateFields = { fx_rate_to_gbp: rate, fx_rate_locked_at: lockedAt }
+  if (line.kind === 'booking') {
+    await updateBooking(line.id, { cost, ...rateFields })
+  } else if (line.kind === 'itinerary_item') {
+    await updateItineraryItem(line.id, { cost, ...rateFields })
+  } else {
+    await updateExpense(line.id, { amount: cost, ...rateFields })
+  }
+  return { cost, rate, lockedAt }
 }
 
 // Expenses are user-entered ad hoc data (unlike bookings/itinerary items,
