@@ -44,8 +44,21 @@ export function parseLocalDate(dateStr: string): Date {
 }
 
 // Formats a date-only string via parseLocalDate, avoiding the UTC-shift bug.
+// With no `opts`, always renders UK-convention dd/mm/yyyy rather than
+// following the device/browser locale (Missing Features #33, simplified:
+// Mark wants one fixed convention app-wide, not a Settings toggle). A
+// day+month-name format (e.g. { day: 'numeric', month: 'short' } -> "14 Sep")
+// is already unambiguous regardless of locale, so callers that pass `opts`
+// keep using `toLocaleDateString` as before — only the bare numeric
+// day/month/year case needed forcing.
 export function formatDate(dateStr: string, opts?: Intl.DateTimeFormatOptions): string {
-  return parseLocalDate(dateStr).toLocaleDateString(undefined, opts)
+  const date = parseLocalDate(dateStr)
+  if (!opts) {
+    const day = String(date.getDate()).padStart(2, '0')
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    return `${day}/${month}/${date.getFullYear()}`
+  }
+  return date.toLocaleDateString(undefined, opts)
 }
 
 // Trims a Postgres `time` value ("14:30:00") down to HH:MM for display.

@@ -521,6 +521,26 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   back to empty stores `null` (falls back to the type label/"Document",
   same as an unset title always has). `APP_VERSION` bumped to v1.27.3.
 
+- **Fixed dd/mm/yyyy date format app-wide, no Settings toggle (28 Sep 2026)**:
+  Missing Features #33, simplified — Mark's call was one fixed UK-convention
+  format everywhere rather than a device-default-vs-override Settings
+  chooser. `format.ts`'s `formatDate(dateStr, opts?)` already had two
+  behaviours depending on whether a caller passed `opts`: most call sites
+  already pass `{ day: 'numeric', month: 'short'/'long' }` (e.g. "14 Sep"),
+  which is unambiguous regardless of locale since the month is spelled out —
+  those are untouched. The few bare `formatDate(dateStr)` calls (trip date
+  range and booking start/end dates on `TripDetail.tsx`, booking/itinerary
+  dates on `Search.tsx`) fell through to `toLocaleDateString(undefined)`,
+  which renders a full numeric date in whatever format the device/browser
+  locale dictates — `9/28/2026` on a US-locale device, `28/09/2026` on a
+  UK one. `formatDate()` now builds the no-`opts` case manually as
+  `dd/mm/yyyy`, so it's fixed regardless of device locale. **Also removed
+  `shareItinerary.ts`'s own `formatDateDDMMYYYY()`** — a near-identical
+  hand-rolled dd/mm/yyyy formatter that existed specifically because
+  `formatDate()` used to be locale-dependent; now that `formatDate()`'s
+  bare-call behaviour is the same fixed format, the PDF header calls
+  `formatDate()` directly instead. `APP_VERSION` bumped to v1.27.4.
+
 ## Ready to build / open items
 
 - The installable icon is SVG-only (see above) — a real PNG icon set is a good
