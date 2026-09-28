@@ -11,6 +11,7 @@ import {
   createTodo,
   toggleTodo,
   deleteDocument,
+  updateDocument,
   deleteLink,
 } from '../lib/api'
 import type { Booking, Document, ItineraryItem, Link as LinkType, Todo, Trip } from '../lib/types'
@@ -192,6 +193,18 @@ export default function TripDetail() {
     if (!window.confirm(`Delete "${doc.title ?? 'this document'}"? This can't be undone.`)) return
     await deleteDocument(doc)
     setDocuments((prev) => prev.filter((d) => d.id !== doc.id))
+  }
+
+  // Missing Features #54: editable display title, independent of the
+  // uploaded filename — window.prompt matches the existing window.confirm
+  // pattern used for delete above rather than introducing a new modal
+  // component just for this one text field.
+  async function handleRenameDocument(doc: Document) {
+    const next = window.prompt('Rename document', doc.title ?? '')
+    if (next === null) return
+    const title = next.trim()
+    const updated = await updateDocument(doc.id, { title: title || null })
+    setDocuments((prev) => prev.map((d) => (d.id === updated.id ? updated : d)))
   }
 
   async function handleDeleteLink(link: LinkType) {
@@ -416,6 +429,7 @@ export default function TripDetail() {
                   documents={documents.filter((d) => d.booking_id === b.id)}
                   links={links.filter((l) => l.booking_id === b.id)}
                   onDeleteDocument={handleDeleteDocument}
+                  onRenameDocument={handleRenameDocument}
                   onDeleteLink={handleDeleteLink}
                 />
                 <div className="mt-2 flex justify-end">
@@ -545,6 +559,7 @@ export default function TripDetail() {
                       documents={documents.filter((d) => d.itinerary_item_id === item.id)}
                       links={links.filter((l) => l.itinerary_item_id === item.id)}
                       onDeleteDocument={handleDeleteDocument}
+                      onRenameDocument={handleRenameDocument}
                       onDeleteLink={handleDeleteLink}
                     />
                     <div className="mt-2 flex justify-end gap-3">
@@ -593,21 +608,25 @@ export default function TripDetail() {
                       type="confirmation"
                       documents={group.items.filter((d) => d.type === 'confirmation')}
                       onDelete={handleDeleteDocument}
+                      onRename={handleRenameDocument}
                     />
                     <DocumentGroup
                       type="photo"
                       documents={group.items.filter((d) => d.type === 'photo')}
                       onDelete={handleDeleteDocument}
+                      onRename={handleRenameDocument}
                     />
                     <DocumentGroup
                       type="receipt"
                       documents={group.items.filter((d) => d.type === 'receipt')}
                       onDelete={handleDeleteDocument}
+                      onRename={handleRenameDocument}
                     />
                     <DocumentGroup
                       type="guide"
                       documents={group.items.filter((d) => d.type === 'guide')}
                       onDelete={handleDeleteDocument}
+                      onRename={handleRenameDocument}
                     />
                   </div>
                 </div>

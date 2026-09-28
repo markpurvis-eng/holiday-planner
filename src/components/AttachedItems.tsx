@@ -3,17 +3,19 @@ import { LongPressMenu } from './LongPressMenu'
 
 // Missing Features #6: long-press a row to delete it, wherever this
 // component renders (Documents/Links tabs' booking/itinerary groups, every
-// booking/itinerary card, Costs tab lines). onDelete* are optional so a
-// read-only usage (none currently) can still opt out.
+// booking/itinerary card, Costs tab lines). onDelete*/onRenameDocument are
+// optional so a read-only usage (none currently) can still opt out.
 export function AttachedItems({
   documents,
   links,
   onDeleteDocument,
+  onRenameDocument,
   onDeleteLink,
 }: {
   documents: Document[]
   links: LinkType[]
   onDeleteDocument?: (doc: Document) => void
+  onRenameDocument?: (doc: Document) => void
   onDeleteLink?: (link: LinkType) => void
 }) {
   if (documents.length === 0 && links.length === 0) return null
@@ -32,17 +34,14 @@ export function AttachedItems({
             <span className="min-w-0 flex-1 truncate">{doc.title ?? 'Document'}</span>
           </a>
         )
-        return onDeleteDocument ? (
-          <LongPressMenu
-            key={doc.id}
-            actions={[
-              {
-                label: 'Delete',
-                destructive: true,
-                onSelect: () => onDeleteDocument(doc),
-              },
-            ]}
-          >
+        const actions = [
+          ...(onRenameDocument ? [{ label: 'Rename', onSelect: () => onRenameDocument(doc) }] : []),
+          ...(onDeleteDocument
+            ? [{ label: 'Delete', destructive: true, onSelect: () => onDeleteDocument(doc) }]
+            : []),
+        ]
+        return actions.length > 0 ? (
+          <LongPressMenu key={doc.id} actions={actions}>
             {row}
           </LongPressMenu>
         ) : (

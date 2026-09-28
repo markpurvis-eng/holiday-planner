@@ -12,7 +12,14 @@ import {
 import type { CostLine, CostRow } from '../lib/costs'
 import { fetchGbpRate } from '../lib/fx'
 import { formatMoney } from '../lib/format'
-import { uploadDocumentFile, createDocument, getExpenses, getDocuments, deleteDocument } from '../lib/api'
+import {
+  uploadDocumentFile,
+  createDocument,
+  getExpenses,
+  getDocuments,
+  deleteDocument,
+  updateDocument,
+} from '../lib/api'
 import { LoadingSpinner } from './LoadingSpinner'
 import { PaymentBadge } from './PaymentBadge'
 import { AttachedItems } from './AttachedItems'
@@ -224,6 +231,15 @@ export function CostsTab({
     setDocuments((prev) => prev.filter((d) => d.id !== doc.id))
   }
 
+  // Missing Features #54.
+  async function handleRenameDocument(doc: Document) {
+    const next = window.prompt('Rename document', doc.title ?? '')
+    if (next === null) return
+    const title = next.trim()
+    const updated = await updateDocument(doc.id, { title: title || null })
+    setDocuments((prev) => prev.map((d) => (d.id === updated.id ? updated : d)))
+  }
+
   function handleAttachReceiptClick(line: CostLine) {
     pendingReceiptLine.current = line
     receiptInputRef.current?.click()
@@ -249,7 +265,12 @@ export function CostsTab({
       const newDoc = await createDocument({
         type: 'receipt',
         file_url: fileUrl,
-        title: file.name,
+        // "Receipt" rather than the camera's own filename (a long numeric
+        // string like IMG_20260928_...jpg) - this is always a fresh photo
+        // taken via the phone camera (input has capture="environment"),
+        // never a file picked from an existing library, so there's no
+        // pre-existing meaningful name to preserve.
+        title: 'Receipt',
         trip_id: tripId,
         booking_id: bookingId,
         itinerary_item_id: itineraryItemId,
@@ -470,7 +491,12 @@ export function CostsTab({
             </button>
           )}
         </div>
-        <AttachedItems documents={attachedDocs} links={[]} onDeleteDocument={handleDeleteDocument} />
+        <AttachedItems
+          documents={attachedDocs}
+          links={[]}
+          onDeleteDocument={handleDeleteDocument}
+          onRenameDocument={handleRenameDocument}
+        />
         {extra}
       </div>
     )

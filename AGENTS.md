@@ -494,6 +494,32 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   the Bookings/Itinerary convention. `Search.tsx`'s Costs result links now
   carry `&highlight=<match.key>` instead of just `?tab=costs`.
   `APP_VERSION` bumped to v1.27.1.
+  **Camera receipt title fixed to "Receipt" (28 Sep 2026)**: the
+  "📷 Add receipt" flow's uploaded document previously defaulted its
+  title to `file.name`, matching `Upload.tsx`'s own convention — fine
+  there, since that flow can take a file with a meaningful existing name,
+  but this input always takes a fresh phone-camera photo
+  (`capture="environment"`), so `file.name` was always the camera's own
+  long numeric filename (e.g. `IMG_20260928_...jpg`), never anything
+  worth preserving. `CostsTab.tsx`'s `handleReceiptFileChange` now hardcodes
+  `title: 'Receipt'` instead. `APP_VERSION` bumped to v1.27.2.
+
+- **Editable document title/rename (28 Sep 2026)**: Missing Features #54 —
+  a document's display title (`document.title`) can now be corrected after
+  upload without re-uploading the file, e.g. fixing a generic "Receipt" or
+  a camera's raw filename once it's actually useful to tell several apart
+  in the Documents tab. New `updateDocument(id, { title })` in `api.ts`.
+  Added a "Rename" action alongside the existing "Delete" to every
+  `LongPressMenu` document usage — `DocumentGroup.tsx` (Documents tab grid)
+  and every `AttachedItems.tsx` instance (booking/itinerary cards, Costs
+  tab lines) — both components take a new optional `onRename`/
+  `onRenameDocument` prop, following the same optional-callback pattern
+  `onDelete`/`onDeleteDocument` already used. **Input mechanism**:
+  `window.prompt()`, matching the existing `window.confirm()` used for
+  delete on the same menu, rather than introducing a new modal component
+  for one text field — pre-filled with the current title, clearing it
+  back to empty stores `null` (falls back to the type label/"Document",
+  same as an unset title always has). `APP_VERSION` bumped to v1.27.3.
 
 ## Ready to build / open items
 
@@ -501,4 +527,6 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   follow-up, not required for functionality.
 - Re-pointing a Document/Link at a different Trip/Booking/Itinerary item
   without re-uploading (the other half of Missing Features #6, alongside the
-  long-press delete built above) — not yet built.
+  long-press delete built above) — not yet built. Now that renaming (Missing
+  Features #54) also reuses this same `LongPressMenu` infrastructure, this is
+  the natural next fast-follow, per Missing Features #55.

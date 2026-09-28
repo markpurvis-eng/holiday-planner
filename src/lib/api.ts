@@ -221,6 +221,15 @@ function extractStoragePath(url: string, bucket: string): string | null {
   return decodeURIComponent(url.slice(idx + marker.length))
 }
 
+// Missing Features #54: lets a document's display title be corrected after
+// upload (e.g. a generic "Receipt" or a camera's raw filename) without
+// re-uploading the underlying file.
+export async function updateDocument(id: string, updates: { title: string | null }): Promise<Document> {
+  const { data, error } = await supabase.from('document').update(updates).eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
 // Missing Features #6: deletes the document row and, best-effort, its
 // underlying Storage object - unlike deleting the row via raw SQL (see
 // Fixed #21), which only orphans the file, this actually frees the space.

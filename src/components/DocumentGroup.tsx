@@ -12,10 +12,12 @@ export function DocumentGroup({
   type,
   documents,
   onDelete,
+  onRename,
 }: {
   type: DocumentType
   documents: Document[]
   onDelete: (doc: Document) => void
+  onRename?: (doc: Document) => void
 }) {
   if (documents.length === 0) return null
 
@@ -28,7 +30,10 @@ export function DocumentGroup({
         {documents.map((doc) => (
           <LongPressMenu
             key={doc.id}
-            actions={[{ label: 'Delete', destructive: true, onSelect: () => onDelete(doc) }]}
+            actions={[
+              ...(onRename ? [{ label: 'Rename', onSelect: () => onRename(doc) }] : []),
+              { label: 'Delete', destructive: true, onSelect: () => onDelete(doc) },
+            ]}
           >
             <a
               href={doc.file_url}
