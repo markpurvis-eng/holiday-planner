@@ -77,6 +77,8 @@ $SrcFileMap = @{
     'DocumentGroup.tsx'   = 'components\DocumentGroup.tsx'
     'AttachedItems.tsx'   = 'components\AttachedItems.tsx'
     'LongPressMenu.tsx'   = 'components\LongPressMenu.tsx'
+    'AttachModePicker.tsx' = 'components\AttachModePicker.tsx'
+    'MoveAttachmentModal.tsx' = 'components\MoveAttachmentModal.tsx'
     'deploy-claude-files.ps1' = 'deploy-claude-files.ps1'
 }
 

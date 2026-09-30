@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import type { Booking, Document, ItineraryItem } from '../lib/types'
 import {
   buildCostLines,
@@ -65,6 +65,7 @@ export function CostsTab({
   // rates) has even finished.
   highlightKey?: string | null
 }) {
+  const navigate = useNavigate()
   const [lines, setLines] = useState<CostLine[] | null>(null)
   const [documents, setDocuments] = useState<Document[]>([])
   const [liveRates, setLiveRates] = useState<Map<string, number>>(new Map())
@@ -501,14 +502,20 @@ export function CostsTab({
       </div>
     )
 
-    // Missing Features #6: ad hoc expense lines are the only Costs-tab rows
-    // that can be deleted at all (bookings/itinerary items are deliberately
-    // excluded, see the roadmap) - long-press the whole card instead of a
-    // permanently-visible Delete button.
+    // Missing Features #6/#55: ad hoc expense lines are the only Costs-tab
+    // rows that can be deleted or edited at all (bookings/itinerary items
+    // are deliberately excluded, see the roadmap) - long-press the whole
+    // card instead of permanently-visible buttons. Edit opens the same
+    // form as "+ Add an ad hoc expense" (AddExpense.tsx doubles as Edit
+    // Expense via ?id=), covering both field corrections and re-pointing
+    // this expense at a different booking/itinerary item/whole trip.
     return line.kind === 'expense' && !locked ? (
       <LongPressMenu
         key={line.key}
-        actions={[{ label: 'Delete', destructive: true, onSelect: () => handleDeleteExpense(line) }]}
+        actions={[
+          { label: 'Edit', onSelect: () => navigate(`/add-expense?id=${line.id}&trip=${tripId}`) },
+          { label: 'Delete', destructive: true, onSelect: () => handleDeleteExpense(line) },
+        ]}
       >
         {card}
       </LongPressMenu>

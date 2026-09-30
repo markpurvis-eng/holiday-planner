@@ -13,12 +13,14 @@ import {
   deleteDocument,
   updateDocument,
   deleteLink,
+  updateLink,
 } from '../lib/api'
 import type { Booking, Document, ItineraryItem, Link as LinkType, Todo, Trip } from '../lib/types'
 import { TabBar } from '../components/TabBar'
 import { DocumentGroup } from '../components/DocumentGroup'
 import { AttachedItems } from '../components/AttachedItems'
 import { LongPressMenu } from '../components/LongPressMenu'
+import { MoveAttachmentModal } from '../components/MoveAttachmentModal'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { formatMoney, formatTime, formatDayAbbrev, formatDate, daysUntil, todayDateString } from '../lib/format'
 import { WeatherForecast } from '../components/WeatherForecast'
@@ -213,6 +215,29 @@ export default function TripDetail() {
     if (!window.confirm(`Delete "${link.label}"? This can't be undone.`)) return
     await deleteLink(link.id)
     setLinks((prev) => prev.filter((l) => l.id !== link.id))
+  }
+
+  // Missing Features #55: re-point a Document/Link at a different
+  // booking/itinerary item (or the whole trip) without re-uploading/
+  // recreating it — the fast-follow to the long-press delete built above.
+  // One shared modal instance driven by `movingAttachment`, rather than a
+  // separate modal per call site, since it can only ever move one
+  // document/link at a time regardless of which of the (several) places
+  // below opened it.
+  const [movingAttachment, setMovingAttachment] = useState<
+    { kind: 'document'; item: Document } | { kind: 'link'; item: LinkType } | null
+  >(null)
+
+  async function handleMoveConfirm(updates: { booking_id: string | null; itinerary_item_id: string | null }) {
+    if (!movingAttachment) return
+    if (movingAttachment.kind === 'document') {
+      const updated = await updateDocument(movingAttachment.item.id, updates)
+      setDocuments((prev) => prev.map((d) => (d.id === updated.id ? updated : d)))
+    } else {
+      const updated = await updateLink(movingAttachment.item.id, updates)
+      setLinks((prev) => prev.map((l) => (l.id === updated.id ? updated : l)))
+    }
+    setMovingAttachment(null)
   }
 
   if (loading) return <LoadingSpinner label="Loading trip…" />
@@ -447,7 +472,9 @@ export default function TripDetail() {
                   links={links.filter((l) => l.booking_id === b.id)}
                   onDeleteDocument={handleDeleteDocument}
                   onRenameDocument={handleRenameDocument}
+                  onMoveDocument={(doc) => setMovingAttachment({ kind: 'document', item: doc })}
                   onDeleteLink={handleDeleteLink}
+                  onMoveLink={(link) => setMovingAttachment({ kind: 'link', item: link })}
                 />
                 <div className="mt-2 flex justify-end">
                   <Link
@@ -579,7 +606,9 @@ export default function TripDetail() {
                       links={links.filter((l) => l.itinerary_item_id === item.id)}
                       onDeleteDocument={handleDeleteDocument}
                       onRenameDocument={handleRenameDocument}
+                      onMoveDocument={(doc) => setMovingAttachment({ kind: 'document', item: doc })}
                       onDeleteLink={handleDeleteLink}
+                      onMoveLink={(link) => setMovingAttachment({ kind: 'link', item: link })}
                     />
                     <div className="mt-2 flex justify-end gap-3">
                       {trip.total_cost_locked_at == null && (
@@ -628,24 +657,28 @@ export default function TripDetail() {
                       documents={group.items.filter((d) => d.type === 'confirmation')}
                       onDelete={handleDeleteDocument}
                       onRename={handleRenameDocument}
+                      onMove={(doc) => setMovingAttachment({ kind: 'document', item: doc })}
                     />
                     <DocumentGroup
                       type="photo"
                       documents={group.items.filter((d) => d.type === 'photo')}
                       onDelete={handleDeleteDocument}
                       onRename={handleRenameDocument}
+                      onMove={(doc) => setMovingAttachment({ kind: 'document', item: doc })}
                     />
                     <DocumentGroup
                       type="receipt"
                       documents={group.items.filter((d) => d.type === 'receipt')}
                       onDelete={handleDeleteDocument}
                       onRename={handleRenameDocument}
+                      onMove={(doc) => setMovingAttachment({ kind: 'document', item: doc })}
                     />
                     <DocumentGroup
                       type="guide"
                       documents={group.items.filter((d) => d.type === 'guide')}
                       onDelete={handleDeleteDocument}
                       onRename={handleRenameDocument}
+                      onMove={(doc) => setMovingAttachment({ kind: 'document', item: doc })}
                     />
                   </div>
                 </div>
@@ -677,6 +710,10 @@ export default function TripDetail() {
                       <LongPressMenu
                         key={link.id}
                         actions={[
+                          {
+                            label: 'Move to…',
+                            onSelect: () => setMovingAttachment({ kind: 'link', item: link }),
+                          },
                           {
                             label: 'Delete',
                             destructive: true,
@@ -753,6 +790,22 @@ export default function TripDetail() {
           </>
         )}
       </div>
+      <MoveAttachmentModal
+        open={movingAttachment != null}
+        itemLabel={
+          movingAttachment == null
+            ? ''
+            : movingAttachment.kind === 'document'
+              ? movingAttachment.item.title ?? 'Document'
+              : movingAttachment.item.label
+        }
+        bookings={bookings}
+        itineraryItems={itinerary}
+        currentBookingId={movingAttachment?.item.booking_id ?? null}
+        currentItineraryItemId={movingAttachment?.item.itinerary_item_id ?? null}
+        onCancel={() => setMovingAttachment(null)}
+        onConfirm={handleMoveConfirm}
+      />
     </div>
   )
 }

@@ -13,11 +13,13 @@ export function DocumentGroup({
   documents,
   onDelete,
   onRename,
+  onMove,
 }: {
   type: DocumentType
   documents: Document[]
   onDelete: (doc: Document) => void
   onRename?: (doc: Document) => void
+  onMove?: (doc: Document) => void
 }) {
   if (documents.length === 0) return null
 
@@ -32,6 +34,7 @@ export function DocumentGroup({
             key={doc.id}
             actions={[
               ...(onRename ? [{ label: 'Rename', onSelect: () => onRename(doc) }] : []),
+              ...(onMove ? [{ label: 'Move to…', onSelect: () => onMove(doc) }] : []),
               { label: 'Delete', destructive: true, onSelect: () => onDelete(doc) },
             ]}
           >

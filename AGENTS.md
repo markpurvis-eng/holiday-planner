@@ -600,12 +600,101 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   coordinates won't get one either) — deliberately fewer-but-correct over
   more-but-sometimes-wrong. `APP_VERSION` bumped to v1.27.6.
 
+- **Shared `AttachModePicker`, and a latent cancelled-items bug fixed by
+  adopting it (29 Sep 2026)**: `src/components/AttachModePicker.tsx` pulls
+  the Trip/Booking/Itinerary-item "Attach to" toggle-plus-dropdown out of
+  `Upload.tsx`, `AddLink.tsx`, and `AddExpense.tsx`, which had each grown
+  their own near-identical copy. All three now render this one component.
+  Doing so fixed a real bug that existed in all three copies: none of them
+  filtered *cancelled* bookings/itinerary items out of the dropdown, so a
+  new document/link/expense could be attached to a cancelled booking or
+  itinerary item — which then never shows on the Costs tab at all
+  (`buildCostLines()` excludes cancelled lines outright, not just via the
+  "hide cancelled" display toggle) and, for a cancelled itinerary item, is
+  visually struck through and easy to miss on the Itinerary tab too.
+  `AttachModePicker` filters cancelled bookings/itinerary items out of both
+  dropdowns; a `currentBookingId`/`currentItineraryItemId` prop keeps an
+  *already*-selected item visible (labelled "(cancelled)") even if it's
+  since been cancelled, so editing something already attached to one
+  doesn't silently blank out the selection.
+
+- **Edit Expense — full field edit + re-point at a different
+  booking/itinerary item, Missing Features #55's other half (29 Sep
+  2026)**: ad hoc expenses previously had no edit at all, only long-press
+  Delete. `AddExpense.tsx` now doubles as Edit Expense via `?id=<uuid>`
+  (same doubling pattern as `EditItineraryItem.tsx`) — every field
+  (label/amount/currency/date paid) plus the attach-point (Trip/Booking/
+  Itinerary item) is editable. Reachable via a new "Edit" long-press action
+  on `CostsTab.tsx`'s expense lines, alongside the existing "Delete".
+  Several non-obvious things had to be handled for re-pointing
+  specifically, not just field edits:
+  - **Costless new target**: the Costs tab only renders a card for a
+    booking/itinerary item with a non-null `cost` — an expense nests under
+    that card. Moving an expense onto a target that's never had a cost
+    would make it vanish from the Costs tab entirely (still in the DB,
+    just with nowhere to render). `ensureCostBearing()` (extracted from the
+    zero-cost-backfill logic `AddExpense.tsx` already had for the *create*
+    flow) now also runs against the *new* target on a re-point.
+  - **Currency change re-locks the rate immediately** (not lazily, unlike
+    bookings/itinerary items) — an expense is always "paid", so there's no
+    later Costs-tab visit that would otherwise pick up an unlocked rate the
+    way `ensureLockedRates()` does for bookings/itinerary items. Amount
+    changes in the *same* currency leave the existing locked rate alone
+    (same simplification the rest of the app already has: `fetchGbpRate()`
+    only ever returns the latest rate, not a rate for a specific date, so
+    there was never date-accurate historical locking to preserve here).
+  - **Receipts follow the expense when it moves**: a receipt is linked to
+    its specific expense via `document.expense_id` (independent of
+    `booking_id`/`itinerary_item_id` on the document — see the ad hoc
+    expenses section above), but those two fields are *also* kept in sync
+    on the document row for the Documents tab's own grouping. New
+    `repointExpenseDocuments()` in `api.ts` updates every document with
+    that `expense_id` to carry the expense's new `booking_id`/
+    `itinerary_item_id`, so a moved receipt doesn't end up showing
+    correctly next to its expense in Costs but under the *wrong* group on
+    the Documents tab.
+  - **Orphaned zero-cost stub, flagged rather than auto-deleted**: moving
+    the last expense off a booking/itinerary item that only had a cost
+    because of the zero-cost-backfill trick leaves that card behind as an
+    empty "£0.00 Paid" line with nothing nested under it. There's no column
+    marking "this cost was synthetic" (a real, deliberately-entered £0.00
+    GBP paid line with rate 1 would look identical), so
+    `looksLikeBackfillStub()` in `AddExpense.tsx` is a heuristic — cost is
+    exactly 0, currency GBP, paid, rate exactly 1, and (checked
+    separately) no expenses remain attached to it after the move. When it
+    matches, the save flow shows an inline prompt naming the now-empty
+    booking/itinerary item and offering to clear its cost fields back to
+    `null`, rather than silently deleting anything or silently leaving
+    clutter behind.
+  - Locked-trip banner (same wording pattern as `EditBooking`/
+    `EditItineraryItem`) warns that amount/currency edits won't retroactively
+    update the cached total, but explicitly notes that *moving* an expense
+    to a different booking/itinerary item within the same trip doesn't
+    affect the total at all (the Grand total sums every line regardless of
+    which card it's nested under), so re-pointing is left fully available
+    even on a locked trip.
+
+- **Document/Link re-point, Missing Features #55 (29 Sep 2026)**: the
+  other half of #55 — moving a Document or Link to a different Trip/
+  Booking/Itinerary item without re-uploading/recreating it, descoped from
+  the original long-press-delete build (Fixed #54) to ship delete first.
+  New `src/components/MoveAttachmentModal.tsx` (a small modal, not a full
+  page — always within the current trip, so unlike Upload/AddLink/
+  AddExpense's version of `AttachModePicker` there's no Trip selector)
+  wraps the same shared `AttachModePicker`. A "Move to…" long-press action
+  sits alongside the existing Rename/Delete actions everywhere a document
+  already has them (`DocumentGroup.tsx`, every `AttachedItems.tsx`
+  instance) and alongside Delete everywhere a link does (`AttachedItems.tsx`,
+  the flat Links-tab list in `TripDetail.tsx`). `TripDetail.tsx` owns one
+  shared `movingAttachment` state (`{ kind: 'document' | 'link', item }` or
+  `null`) and renders a single `MoveAttachmentModal` instance driven by it,
+  rather than one modal per call site. New `updateLink()` in `api.ts`
+  (didn't exist before — only `createLink`/`deleteLink` did); `updateDocument()`'s
+  update type widened from title-only to also accept `booking_id`/
+  `itinerary_item_id`. Neither accepts `trip_id` — a repoint always stays
+  within the same trip.
+
 ## Ready to build / open items
 
 - The installable icon is SVG-only (see above) — a real PNG icon set is a good
   follow-up, not required for functionality.
-- Re-pointing a Document/Link at a different Trip/Booking/Itinerary item
-  without re-uploading (the other half of Missing Features #6, alongside the
-  long-press delete built above) — not yet built. Now that renaming (Missing
-  Features #54) also reuses this same `LongPressMenu` infrastructure, this is
-  the natural next fast-follow, per Missing Features #55.

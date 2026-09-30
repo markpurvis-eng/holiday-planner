@@ -10,13 +10,17 @@ export function AttachedItems({
   links,
   onDeleteDocument,
   onRenameDocument,
+  onMoveDocument,
   onDeleteLink,
+  onMoveLink,
 }: {
   documents: Document[]
   links: LinkType[]
   onDeleteDocument?: (doc: Document) => void
   onRenameDocument?: (doc: Document) => void
+  onMoveDocument?: (doc: Document) => void
   onDeleteLink?: (link: LinkType) => void
+  onMoveLink?: (link: LinkType) => void
 }) {
   if (documents.length === 0 && links.length === 0) return null
 
@@ -36,6 +40,7 @@ export function AttachedItems({
         )
         const actions = [
           ...(onRenameDocument ? [{ label: 'Rename', onSelect: () => onRenameDocument(doc) }] : []),
+          ...(onMoveDocument ? [{ label: 'Move to…', onSelect: () => onMoveDocument(doc) }] : []),
           ...(onDeleteDocument
             ? [{ label: 'Delete', destructive: true, onSelect: () => onDeleteDocument(doc) }]
             : []),
@@ -60,17 +65,12 @@ export function AttachedItems({
             <span className="min-w-0 flex-1 truncate">{link.label}</span>
           </a>
         )
-        return onDeleteLink ? (
-          <LongPressMenu
-            key={link.id}
-            actions={[
-              {
-                label: 'Delete',
-                destructive: true,
-                onSelect: () => onDeleteLink(link),
-              },
-            ]}
-          >
+        const linkActions = [
+          ...(onMoveLink ? [{ label: 'Move to…', onSelect: () => onMoveLink(link) }] : []),
+          ...(onDeleteLink ? [{ label: 'Delete', destructive: true, onSelect: () => onDeleteLink(link) }] : []),
+        ]
+        return linkActions.length > 0 ? (
+          <LongPressMenu key={link.id} actions={linkActions}>
             {row}
           </LongPressMenu>
         ) : (

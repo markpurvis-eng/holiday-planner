@@ -223,11 +223,33 @@ function extractStoragePath(url: string, bucket: string): string | null {
 
 // Missing Features #54: lets a document's display title be corrected after
 // upload (e.g. a generic "Receipt" or a camera's raw filename) without
-// re-uploading the underlying file.
-export async function updateDocument(id: string, updates: { title: string | null }): Promise<Document> {
+// re-uploading the underlying file. Missing Features #55 widened this from
+// title-only to also cover booking_id/itinerary_item_id, for re-pointing a
+// document at a different attachment within the same trip — trip_id itself
+// is deliberately not included here, since a repoint never moves a
+// document to a different trip.
+export async function updateDocument(
+  id: string,
+  updates: Partial<Pick<Document, 'title' | 'booking_id' | 'itinerary_item_id'>>
+): Promise<Document> {
   const { data, error } = await supabase.from('document').update(updates).eq('id', id).select().single()
   if (error) throw error
   return data
+}
+
+// Missing Features #55: repoints every receipt linked to a specific ad hoc
+// expense (document.expense_id) to follow that expense's own new
+// booking_id/itinerary_item_id when it moves in Edit Expense. Without this,
+// a receipt would keep showing correctly next to its expense on the Costs
+// tab (that link is via expense_id, independent of these two fields) but
+// under the *old* attachment group on the Documents tab, which still
+// groups by booking_id/itinerary_item_id alone.
+export async function repointExpenseDocuments(
+  expenseId: string,
+  updates: { booking_id: string | null; itinerary_item_id: string | null }
+): Promise<void> {
+  const { error } = await supabase.from('document').update(updates).eq('expense_id', expenseId)
+  if (error) throw error
 }
 
 // Missing Features #6: deletes the document row and, best-effort, its
@@ -275,6 +297,19 @@ export async function deleteLink(id: string): Promise<void> {
   if (error) throw error
 }
 
+// Missing Features #55: re-points a Link at a different booking/itinerary
+// item (or the whole trip) without recreating it. trip_id is left out for
+// the same reason as updateDocument above — a repoint stays within the
+// same trip.
+export async function updateLink(
+  id: string,
+  updates: Partial<Pick<Link, 'booking_id' | 'itinerary_item_id'>>
+): Promise<Link> {
+  const { data, error } = await supabase.from('link').update(updates).eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
 // --- Expenses (ad hoc payments: tips, souvenirs, taxis, etc.) ---
 // Distinct from booking/itinerary_item, which represent planned costs.
 // An expense is recorded after it's paid, so it has no unpaid/outstanding
@@ -289,6 +324,14 @@ export async function getExpenses(tripId: string): Promise<Expense[]> {
     .order('paid_on', { ascending: false })
   if (error) throw error
   return data ?? []
+}
+
+// Single-record fetch for Edit Expense, same pattern as getBooking/
+// getItineraryItem.
+export async function getExpense(id: string): Promise<Expense | null> {
+  const { data, error } = await supabase.from('expense').select('*').eq('id', id).single()
+  if (error) throw error
+  return data
 }
 
 export async function createExpense(expense: {

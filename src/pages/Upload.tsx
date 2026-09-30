@@ -3,7 +3,9 @@ import type { FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { getTrips, getBookings, getItinerary, uploadDocumentFile, createDocument } from '../lib/api'
 import type { Booking, DocumentType, ItineraryItem, Trip } from '../lib/types'
-import { formatDate, daysUntil } from '../lib/format'
+import { daysUntil } from '../lib/format'
+import { AttachModePicker } from '../components/AttachModePicker'
+import type { AttachMode } from '../components/AttachModePicker'
 
 const TYPES: { id: DocumentType; label: string }[] = [
   { id: 'confirmation', label: 'Confirmation' },
@@ -19,13 +21,6 @@ const ACCEPT_BY_TYPE: Record<DocumentType, string> = {
   confirmation: 'image/*,application/pdf,.doc,.docx,.txt',
   receipt: 'image/*,application/pdf,.doc,.docx,.txt',
   guide: 'image/*,application/pdf,.doc,.docx,.txt',
-}
-
-type AttachMode = 'trip' | 'booking' | 'itinerary'
-
-function formatItineraryLabel(item: ItineraryItem) {
-  const date = formatDate(item.date, { day: 'numeric', month: 'short' })
-  return `${date} · ${item.venue ?? item.type}`
 }
 
 export default function Upload() {
@@ -173,70 +168,16 @@ export default function Upload() {
           </select>
         </div>
 
-        <div>
-          <label className="mb-1 block text-sm font-medium text-stone-600">Attach to</label>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setAttachMode('trip')}
-              className={`flex-1 rounded-xl px-2 py-2 text-sm font-medium ${
-                attachMode === 'trip' ? 'bg-teal-600 text-white' : 'bg-stone-100 text-stone-600'
-              }`}
-            >
-              Whole trip
-            </button>
-            <button
-              type="button"
-              onClick={() => setAttachMode('booking')}
-              disabled={bookings.length === 0}
-              className={`flex-1 rounded-xl px-2 py-2 text-sm font-medium disabled:opacity-40 ${
-                attachMode === 'booking' ? 'bg-teal-600 text-white' : 'bg-stone-100 text-stone-600'
-              }`}
-            >
-              A booking
-            </button>
-            <button
-              type="button"
-              onClick={() => setAttachMode('itinerary')}
-              disabled={itineraryItems.length === 0}
-              className={`flex-1 rounded-xl px-2 py-2 text-sm font-medium disabled:opacity-40 ${
-                attachMode === 'itinerary' ? 'bg-teal-600 text-white' : 'bg-stone-100 text-stone-600'
-              }`}
-            >
-              An itinerary item
-            </button>
-          </div>
-
-          {attachMode === 'booking' && (
-            <select
-              value={bookingId}
-              onChange={(e) => setBookingId(e.target.value)}
-              className="mt-2 w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5"
-            >
-              <option value="">Choose a booking…</option>
-              {bookings.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.provider_name}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {attachMode === 'itinerary' && (
-            <select
-              value={itineraryItemId}
-              onChange={(e) => setItineraryItemId(e.target.value)}
-              className="mt-2 w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5"
-            >
-              <option value="">Choose an itinerary item…</option>
-              {itineraryItems.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {formatItineraryLabel(item)}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
+        <AttachModePicker
+          mode={attachMode}
+          onModeChange={setAttachMode}
+          bookings={bookings}
+          itineraryItems={itineraryItems}
+          bookingId={bookingId}
+          onBookingIdChange={setBookingId}
+          itineraryItemId={itineraryItemId}
+          onItineraryItemIdChange={setItineraryItemId}
+        />
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
