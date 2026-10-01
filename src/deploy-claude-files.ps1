@@ -19,7 +19,7 @@
                            Default: your Downloads folder.
     -RepoRoot <path>       The repo root to copy into (both the root-level
                            map and the src/ map are resolved from this).
-                           Default: C:\Users\markp\src\holiday-planner
+                           Default: C:\Users\markp\Programs\Src\Holiday Planner App\holiday-planner
     -OneDriveRoot <path>   Destination for files that live outside the repo
                            entirely (currently just the roadmap doc).
                            Default: C:\Users\markp\OneDrive\Sync\Projects
@@ -35,7 +35,7 @@
 
 param(
     [string]$SourceFolder = "$env:USERPROFILE\Downloads",
-    [string]$RepoRoot = "C:\Users\markp\src\holiday-planner",
+    [string]$RepoRoot = "C:\Users\markp\Programs\Src\Holiday Planner App\holiday-planner",
     [string]$OneDriveRoot = "C:\Users\markp\OneDrive\Sync\Projects",
     [switch]$KeepSource
 )
