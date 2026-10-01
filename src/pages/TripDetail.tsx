@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import {
@@ -33,7 +33,11 @@ import { resolveEntryTimezone, homeTimeLabel } from '../lib/timezone'
 import { buildAttachmentGroups } from '../lib/attachmentGroups'
 import { CostsTab } from '../components/CostsTab'
 
-type Tab = 'bookings' | 'itinerary' | 'documents' | 'links' | 'costs' | 'todos'
+// Leaflet is only needed when the Map tab is opened, so it loads on demand
+// rather than adding to the main bundle every other tab ships with.
+const MapTab = lazy(() => import('../components/MapTab'))
+
+type Tab = 'bookings' | 'itinerary' | 'map' | 'documents' | 'links' | 'costs' | 'todos'
 
 // Scrolls a card into view sitting just below the sticky header, instead of
 // scrollIntoView's block:'start'/'center', which would tuck the card
@@ -51,7 +55,7 @@ function scrollToItem(targetId: string, behavior: ScrollBehavior) {
 export default function TripDetail() {
   const { id } = useParams<{ id: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
-  const VALID_TABS: Tab[] = ['bookings', 'itinerary', 'documents', 'links', 'costs', 'todos']
+  const VALID_TABS: Tab[] = ['bookings', 'itinerary', 'map', 'documents', 'links', 'costs', 'todos']
   const tabParam = searchParams.get('tab')
   const initialTab = VALID_TABS.includes(tabParam as Tab) ? (tabParam as Tab) : 'bookings'
   const highlightId = searchParams.get('highlight')
@@ -349,6 +353,7 @@ export default function TripDetail() {
           tabs={[
             { id: 'bookings', label: 'Bookings' },
             { id: 'itinerary', label: 'Itinerary' },
+            { id: 'map', label: 'Map' },
             { id: 'documents', label: 'Documents' },
             { id: 'links', label: 'Links' },
             { id: 'costs', label: 'Costs' },
@@ -631,6 +636,18 @@ export default function TripDetail() {
               )
             })}
           </>
+        )}
+
+        {tab === 'map' && (
+          <Suspense fallback={<LoadingSpinner label="Loading map…" />}>
+            <MapTab
+              bookings={bookingsForTimeline}
+              itinerary={itinerary.filter((item) => !hideCancelled || !item.cancelled)}
+              tripStart={trip.start_date}
+              tripEnd={trip.end_date}
+              onJump={handleJumpTo}
+            />
+          </Suspense>
         )}
 
         {tab === 'documents' && (

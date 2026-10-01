@@ -709,7 +709,27 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   normal, and needs `NOMINATIM_CONTACT` because Nominatim's usage policy requires
   an identifying contact. Nominatim blocks automated fetches from cloud sandboxes,
   so geocoding has to run from the laptop. No edit-screen field or map UI exists
-  yet; the planned Map tab (after Itinerary) will read `pin_lat`/`pin_lng`.
+  yet; the Map tab (see next bullet) reads `pin_lat`/`pin_lng`.
+
+- **Map tab and Dashboard swipe (v1.29.0)**: `src/components/MapTab.tsx` (Leaflet +
+  OpenStreetMap tiles, no API key) is a trip tab after Itinerary, loaded with
+  `React.lazy` so Leaflet only ships when the tab is opened. `src/lib/mapPins.ts`
+  turns bookings/itinerary items that have `pin_lat`/`pin_lng` into pins; items
+  at identical coordinates collapse into one marker with a count (every La Cala
+  round shares one place), and tapping a marker lists its items, each with a
+  "View →" that reuses `handleJumpTo()` to switch to the Bookings/Itinerary tab
+  and highlight the card. A day-chip row filters pins: an itinerary item shows
+  only on its own date, a booking on every day its start/end dates cover. Markers
+  are `L.divIcon`s, not Leaflet's default image icons, which break under Vite's
+  asset handling. Respects the "hide cancelled" setting, not the payment filter.
+  Tiles need a connection, so the map is blank offline (Missing Features #15).
+  `TripCard.tsx`: swipe left (>= 60px, mostly horizontal) opens
+  `/trips/:id?tab=map`. It uses Pointer Events (touch, pen and mouse drag),
+  `touch-action: pan-y` so vertical scrolling still works, ignores gestures that
+  start within 24px of either screen edge (Android's Back gesture), and
+  suppresses the click that follows a completed swipe. Swipe inside a trip was
+  deliberately not built: it clashes with panning the map and with horizontal
+  scrolling of the tab bar and filter pills.
 
 ## Ready to build / open items
 

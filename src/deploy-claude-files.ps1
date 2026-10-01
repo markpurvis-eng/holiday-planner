@@ -79,6 +79,8 @@ $SrcFileMap = @{
     'LongPressMenu.tsx'   = 'components\LongPressMenu.tsx'
     'AttachModePicker.tsx' = 'components\AttachModePicker.tsx'
     'MoveAttachmentModal.tsx' = 'components\MoveAttachmentModal.tsx'
+    'MapTab.tsx'          = 'components\MapTab.tsx'
+    'mapPins.ts'          = 'lib\mapPins.ts'
     'deploy-claude-files.ps1' = 'deploy-claude-files.ps1'
 }
 

@@ -1,3 +1,5 @@
+import { useRef } from 'react'
+import type { PointerEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { Trip } from '../lib/types'
 import { formatDate, daysUntil, formatMoney } from '../lib/format'
@@ -26,6 +28,35 @@ export function TripCard({
   attachmentCounts?: TripAttachmentCounts
 }) {
   const navigate = useNavigate()
+  // Swipe left on the card opens that trip's Map tab. Pointer events cover
+  // touch, pen and mouse drag, so it can be tried on desktop too.
+  const swipeStart = useRef<{ x: number; y: number } | null>(null)
+  const swiped = useRef(false)
+
+  function handlePointerDown(e: PointerEvent<HTMLDivElement>) {
+    swiped.current = false
+    // Android's system Back gesture starts at either screen edge, so a
+    // swipe that begins right at an edge is left alone.
+    const edge = 24
+    if (e.clientX < edge || e.clientX > window.innerWidth - edge) {
+      swipeStart.current = null
+      return
+    }
+    swipeStart.current = { x: e.clientX, y: e.clientY }
+  }
+
+  function handlePointerUp(e: PointerEvent<HTMLDivElement>) {
+    const start = swipeStart.current
+    swipeStart.current = null
+    if (!start) return
+    const dx = e.clientX - start.x
+    const dy = e.clientY - start.y
+    if (dx <= -60 && Math.abs(dx) > Math.abs(dy) * 2) {
+      swiped.current = true
+      navigate(`/trips/${trip.id}?tab=map`)
+    }
+  }
+
   const icon = trip.trip_type?.icon ?? '🧳'
   const showCountdown = trip.status === 'upcoming'
   const hasAttachments = !!attachmentCounts && (attachmentCounts.documents > 0 || attachmentCounts.links > 0)
@@ -38,7 +69,19 @@ export function TripCard({
     <div
       role="link"
       tabIndex={0}
-      onClick={() => navigate(`/trips/${trip.id}`)}
+      onClick={() => {
+        if (swiped.current) {
+          swiped.current = false
+          return
+        }
+        navigate(`/trips/${trip.id}`)
+      }}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={() => {
+        swipeStart.current = null
+      }}
+      style={{ touchAction: 'pan-y' }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') navigate(`/trips/${trip.id}`)
       }}
