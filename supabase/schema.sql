@@ -136,6 +136,13 @@ alter table booking add column if not exists destination_name text;
 alter table booking add column if not exists destination_lat numeric;
 alter table booking add column if not exists destination_lng numeric;
 
+-- Map pins (schema v2): street address text plus pin coordinates, kept
+-- separate from destination_lat/lng above, which is a coarse per-city
+-- weather anchor and must not be repurposed as a precise pin.
+alter table booking add column if not exists address text;
+alter table booking add column if not exists pin_lat double precision;
+alter table booking add column if not exists pin_lng double precision;
+
 -- Time-of-day precision for bookings: nullable and additive, so existing
 -- bookings keep working with date-only ordering until real times are
 -- backfilled (see AGENTS.md, "Bookings on the Itinerary tab").
@@ -216,6 +223,13 @@ alter table itinerary_item add column if not exists payment_status text not null
 alter table itinerary_item add column if not exists destination_name text;
 alter table itinerary_item add column if not exists destination_lat numeric;
 alter table itinerary_item add column if not exists destination_lng numeric;
+
+-- Map pins (schema v2): street address text plus pin coordinates, kept
+-- separate from destination_lat/lng above, which is a coarse per-city
+-- weather anchor and must not be repurposed as a precise pin.
+alter table itinerary_item add column if not exists address text;
+alter table itinerary_item add column if not exists pin_lat double precision;
+alter table itinerary_item add column if not exists pin_lng double precision;
 
 -- Costs tab, GBP roll-up -- same reasoning as booking.fx_rate_* above.
 alter table itinerary_item add column if not exists fx_rate_to_gbp numeric;
@@ -451,5 +465,6 @@ create policy "itineraries bucket public read"
 -- on-conflict clause keeps re-running this file safe.
 
 insert into schema_version (version, description) values
-  (1, 'Baseline: added Data API grants to all tables and the schema_version table')
+  (1, 'Baseline: added Data API grants to all tables and the schema_version table'),
+  (2, 'Map pins: address, pin_lat, pin_lng on booking and itinerary_item')
 on conflict (version) do nothing;

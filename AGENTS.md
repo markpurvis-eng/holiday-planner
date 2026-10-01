@@ -694,6 +694,23 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   `itinerary_item_id`. Neither accepts `trip_id` — a repoint always stays
   within the same trip.
 
+- **Map pin data (schema v2, 1 Oct 2026)**: `booking` and `itinerary_item` each
+  have `address` (text), `pin_lat` and `pin_lng`. These are deliberately separate
+  from `destination_lat`/`lng`, which are a coarse per-city weather anchor
+  (e.g. "Montreal") and would put pins in the wrong place if reused. Only
+  place-like rows carry an address; flights, cruise ships, sea days, taxis,
+  transfers and car hire are left null on purpose. The address is free text
+  copied from the confirmation (or a searchable "Venue, City" string where the
+  confirmation gave none). `scripts/geocode-pins.mjs` fills `pin_lat`/`pin_lng`
+  from OpenStreetMap Nominatim: dry run by default, `--write` to save, and rows
+  that only matched after dropping the venue name are held back unless
+  `--include-fallback` is passed. It signs in with the household login
+  (`GEOCODE_EMAIL`/`GEOCODE_PASSWORD` in the gitignored `.env`) so RLS applies as
+  normal, and needs `NOMINATIM_CONTACT` because Nominatim's usage policy requires
+  an identifying contact. Nominatim blocks automated fetches from cloud sandboxes,
+  so geocoding has to run from the laptop. No edit-screen field or map UI exists
+  yet; the planned Map tab (after Itinerary) will read `pin_lat`/`pin_lng`.
+
 ## Ready to build / open items
 
 - The installable icon is SVG-only (see above) — a real PNG icon set is a good

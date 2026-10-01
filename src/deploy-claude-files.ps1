@@ -90,6 +90,7 @@ $RootFileMap = @{
     'README.md'         = 'README.md'
     'netlify.toml'      = 'netlify.toml'
     'schema.sql'        = 'supabase\schema.sql'
+    'geocode-pins.mjs'  = 'scripts\geocode-pins.mjs'
     'index.html'        = 'index.html'
     'vite.config.ts'    = 'vite.config.ts'
     'icon.svg'                = 'public\icon.svg'

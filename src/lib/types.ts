@@ -46,6 +46,9 @@ export type Booking = {
   destination_name: string | null
   destination_lat: number | null
   destination_lng: number | null
+  address: string | null
+  pin_lat: number | null
+  pin_lng: number | null
   fx_rate_to_gbp: number | null
   fx_rate_locked_at: string | null
 }
@@ -92,6 +95,9 @@ export type ItineraryItem = {
   destination_name: string | null
   destination_lat: number | null
   destination_lng: number | null
+  address: string | null
+  pin_lat: number | null
+  pin_lng: number | null
   fx_rate_to_gbp: number | null
   fx_rate_locked_at: string | null
 }
