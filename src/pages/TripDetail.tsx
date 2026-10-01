@@ -309,10 +309,10 @@ export default function TripDetail() {
     weatherLat != null && weatherLng != null && daysUntil(trip.start_date) <= 10 && daysUntil(trip.end_date) >= 0
 
   // The trip header only becomes collapsible when the weather card is also
-  // showing, and only on Bookings/Itinerary (the two tabs with filters
-  // stacked underneath) — that's the specific combination that runs short
+  // showing, and only on Bookings/Itinerary/Map (the tabs that need the most
+  // room for what's underneath) — that's the specific combination that runs short
   // on screen height on a phone. Elsewhere it's always shown in full.
-  const tripHeaderCollapsible = weatherVisible && (tab === 'bookings' || tab === 'itinerary')
+  const tripHeaderCollapsible = weatherVisible && (tab === 'bookings' || tab === 'itinerary' || tab === 'map')
   const showFullTripHeader = !tripHeaderCollapsible || tripHeaderExpanded
   const TripHeaderTag = tripHeaderCollapsible ? 'button' : 'div'
 

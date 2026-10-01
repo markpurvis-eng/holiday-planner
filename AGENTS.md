@@ -719,7 +719,15 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   round shares one place), and tapping a marker lists its items, each with a
   "View →" that reuses `handleJumpTo()` to switch to the Bookings/Itinerary tab
   and highlight the card. A day-chip row filters pins: an itinerary item shows
-  only on its own date, a booking on every day its start/end dates cover. Markers
+  only on its own date, a booking on every day its start/end dates cover. The
+  tapped pin's card opens as an overlay at the top of the map (not below it, where
+  the fixed bottom nav hid it on a phone), scrolls internally for a place with
+  many items, and the map is nudged (`panInside`) so the pin isn't under it.
+  The map's height is measured to fill the space between its top edge and the
+  bottom nav rather than a fixed share of the screen, so its bottom edge and the
+  required OpenStreetMap attribution are never behind the nav; the wrapper is
+  `isolate` so Leaflet's z-index 400-1000 panes can't poke through the sticky
+  header or nav. Zoom buttons are bottom-right for the same reason. Markers
   are `L.divIcon`s, not Leaflet's default image icons, which break under Vite's
   asset handling. Respects the "hide cancelled" setting, not the payment filter.
   Tiles need a connection, so the map is blank offline (Missing Features #15).
