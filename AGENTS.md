@@ -758,3 +758,14 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   Clearing both boxes clears the address and pin. "Check" previews the match
   without saving. There is no Add Booking screen; bookings are created by Claude,
   who should ask for a clear address when one is missing or ambiguous.
+
+- **Google Maps link on cards (v1.31.0)**: booking and itinerary cards on
+  `TripDetail.tsx` show a "📍 Map" link (opens Google Maps in a new tab) beside
+  Edit whenever the row has a pin or an address; `googleMapsUrl()` in
+  `src/lib/mapPins.ts` builds it. The pin wins when present
+  (`query=<lat>,<lng>`), because it is the point shown on the Map tab and is
+  often hand-corrected, while Google re-reading an address string can land
+  elsewhere; otherwise it falls back to the address text. Rows with neither
+  show no link. The booking begin/end markers on the Itinerary tab don't get
+  one (they jump to the booking, which has its own).
+

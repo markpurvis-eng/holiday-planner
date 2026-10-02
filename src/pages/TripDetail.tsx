@@ -28,6 +28,7 @@ import { resolveTodaysLocation } from '../lib/weather'
 import { getHideCancelledItems } from '../lib/settings'
 import { PaymentBadge } from '../components/PaymentBadge'
 import { mergeItineraryTimeline } from '../lib/itineraryTimeline'
+import { googleMapsUrl } from '../lib/mapPins'
 import type { TimelineEntry } from '../lib/itineraryTimeline'
 import { resolveEntryTimezone, homeTimeLabel } from '../lib/timezone'
 import { buildAttachmentGroups } from '../lib/attachmentGroups'
@@ -481,7 +482,17 @@ export default function TripDetail() {
                   onDeleteLink={handleDeleteLink}
                   onMoveLink={(link) => setMovingAttachment({ kind: 'link', item: link })}
                 />
-                <div className="mt-2 flex justify-end">
+                <div className="mt-2 flex justify-end gap-3">
+                  {googleMapsUrl(b) && (
+                    <a
+                      href={googleMapsUrl(b) ?? undefined}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-medium text-teal-600 hover:text-teal-700"
+                    >
+                      📍 Map
+                    </a>
+                  )}
                   <Link
                     to={`/edit-booking?id=${b.id}${id ? `&trip=${id}` : ''}`}
                     className="text-xs font-medium text-teal-600 hover:text-teal-700"
@@ -616,6 +627,16 @@ export default function TripDetail() {
                       onMoveLink={(link) => setMovingAttachment({ kind: 'link', item: link })}
                     />
                     <div className="mt-2 flex justify-end gap-3">
+                      {googleMapsUrl(item) && (
+                        <a
+                          href={googleMapsUrl(item) ?? undefined}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-medium text-teal-600 hover:text-teal-700"
+                        >
+                          📍 Map
+                        </a>
+                      )}
                       {trip.total_cost_locked_at == null && (
                         <Link
                           to={`/add-expense?trip=${id}&itinerary=${item.id}&date=${item.date}`}

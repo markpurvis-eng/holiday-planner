@@ -93,3 +93,22 @@ export function daysBetween(start: string, end: string): string[] {
   }
   return days
 }
+
+/**
+ * Google Maps link for a booking / itinerary item, or null if it has neither
+ * a pin nor an address. The pin wins when there is one: it's the point shown
+ * on the Map tab (and often hand-corrected), whereas Google re-interpreting an
+ * address string can land somewhere else. Falls back to the address text.
+ */
+export function googleMapsUrl(entry: {
+  pin_lat: number | null
+  pin_lng: number | null
+  address: string | null
+}): string | null {
+  const base = 'https://www.google.com/maps/search/?api=1&query='
+  if (entry.pin_lat != null && entry.pin_lng != null) {
+    return `${base}${entry.pin_lat},${entry.pin_lng}`
+  }
+  const address = entry.address?.trim()
+  return address ? `${base}${encodeURIComponent(address)}` : null
+}
