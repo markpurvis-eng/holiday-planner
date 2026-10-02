@@ -28,7 +28,6 @@ import { resolveTodaysLocation } from '../lib/weather'
 import { getHideCancelledItems } from '../lib/settings'
 import { PaymentBadge } from '../components/PaymentBadge'
 import { mergeItineraryTimeline } from '../lib/itineraryTimeline'
-import { googleMapsUrl } from '../lib/mapPins'
 import type { TimelineEntry } from '../lib/itineraryTimeline'
 import { resolveEntryTimezone, homeTimeLabel } from '../lib/timezone'
 import { buildAttachmentGroups } from '../lib/attachmentGroups'
@@ -68,6 +67,8 @@ export default function TripDetail() {
   const [todos, setTodos] = useState<Todo[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>(initialTab)
+  // Set by a card's "📍 Map" link: the Map tab opens on that item's pin.
+  const [mapFocus, setMapFocus] = useState<{ kind: 'booking' | 'itinerary'; id: string } | null>(null)
   const autoScrolledTabRef = useRef<Tab | null>(null)
   const [newTodo, setNewTodo] = useState('')
   const [hideCancelled] = useState(() => getHideCancelledItems())
@@ -283,6 +284,7 @@ export default function TripDetail() {
   // so it needs setting directly here — updating searchParams alone
   // wouldn't switch the visible tab.
   function handleJumpTo(targetTab: 'bookings' | 'itinerary', id: string) {
+    setMapFocus(null)
     setTab(targetTab)
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
@@ -290,6 +292,19 @@ export default function TripDetail() {
       next.set('highlight', id)
       return next
     })
+  }
+
+  // The card's "📍 Map" link: switch to the Map tab with this item's pin selected.
+  function handleShowOnMap(kind: 'booking' | 'itinerary', id: string) {
+    setMapFocus({ kind, id })
+    setTab('map')
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set('tab', 'map')
+      next.delete('highlight')
+      return next
+    })
+    window.scrollTo({ top: 0 })
   }
 
   const documentGroups = buildAttachmentGroups(documents, bookings, itinerary, handleJumpTo)
@@ -361,7 +376,10 @@ export default function TripDetail() {
             { id: 'todos', label: 'To-dos' },
           ]}
           active={tab}
-          onChange={setTab}
+          onChange={(t) => {
+            setMapFocus(null)
+            setTab(t)
+          }}
         />
 
         {(tab === 'bookings' || tab === 'itinerary') && (
@@ -483,15 +501,14 @@ export default function TripDetail() {
                   onMoveLink={(link) => setMovingAttachment({ kind: 'link', item: link })}
                 />
                 <div className="mt-2 flex justify-end gap-3">
-                  {googleMapsUrl(b, b.provider_name) && (
-                    <a
-                      href={googleMapsUrl(b, b.provider_name) ?? undefined}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                  {b.pin_lat != null && b.pin_lng != null && (
+                    <button
+                      type="button"
+                      onClick={() => handleShowOnMap('booking', b.id)}
                       className="text-xs font-medium text-teal-600 hover:text-teal-700"
                     >
                       📍 Map
-                    </a>
+                    </button>
                   )}
                   <Link
                     to={`/edit-booking?id=${b.id}${id ? `&trip=${id}` : ''}`}
@@ -627,15 +644,14 @@ export default function TripDetail() {
                       onMoveLink={(link) => setMovingAttachment({ kind: 'link', item: link })}
                     />
                     <div className="mt-2 flex justify-end gap-3">
-                      {googleMapsUrl(item, item.venue) && (
-                        <a
-                          href={googleMapsUrl(item, item.venue) ?? undefined}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                      {item.pin_lat != null && item.pin_lng != null && (
+                        <button
+                          type="button"
+                          onClick={() => handleShowOnMap('itinerary', item.id)}
                           className="text-xs font-medium text-teal-600 hover:text-teal-700"
                         >
                           📍 Map
-                        </a>
+                        </button>
                       )}
                       {trip.total_cost_locked_at == null && (
                         <Link
@@ -667,6 +683,7 @@ export default function TripDetail() {
               tripStart={trip.start_date}
               tripEnd={trip.end_date}
               onJump={handleJumpTo}
+              focus={mapFocus}
             />
           </Suspense>
         )}

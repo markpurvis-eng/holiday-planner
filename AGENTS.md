@@ -759,19 +759,21 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   without saving. There is no Add Booking screen; bookings are created by Claude,
   who should ask for a clear address when one is missing or ambiguous.
 
-- **Google Maps link on cards (v1.31.0, name-based since v1.31.1)**: booking and
-  itinerary cards on `TripDetail.tsx` show a "📍 Map" link (new tab) beside Edit
-  when the row has a pin or an address (a name alone doesn't count: flights and car hire have names but no place); `googleMapsUrl(entry, name)` in
-  `src/lib/mapPins.ts` builds it (`provider_name` for bookings, `venue` for
-  itinerary items). A bare pin only gives coordinates, with no reviews, photos or
-  opening hours, so the link searches by name (plus address when there is one),
-  and when there is a pin it uses the path form
-  `/maps/search/<text>/@lat,lng,17z` so the search is biased to that spot. The
-  `@lat,lng` form is not part of Google's documented URL API (the
-  `?api=1&query=` form is, but it has no location bias), so if it ever stops
-  working, fall back to the documented form. No pin: documented search on the
-  text. Pin but no text: bare pin. No pin and no address: no link. Google, not the app,
-  decides whether a search opens one place card or a results list.
+- **"📍 Map" on cards opens the in-app Map tab (v1.34.0)**: booking and itinerary
+  cards on `TripDetail.tsx` show a "📍 Map" button beside Edit, only when the row
+  has a saved pin (`pin_lat`/`pin_lng`; an address with no pin gets no button,
+  because the Map tab only shows pinned rows). It calls `handleShowOnMap()`, which
+  sets `mapFocus` and switches to the Map tab; `MapTab` takes a `focus` prop and
+  opens with that item's pin selected (card showing) and the map zoomed to level
+  16. Any manual tab change, or a "View →" jump, clears the focus. **History:**
+  v1.31.0/v1.31.1 had this link open Google Maps instead (`googleMapsUrl()`, a
+  name + address search biased to the pin). Removed in v1.34.0: Google needs a
+  matching place to show a place card, so pins at cruise ports and similar gave a
+  bare pin or a long results list, the address look-up (OpenStreetMap) often
+  can't find addresses copied from Google, and the cards and Map tab behaved
+  differently. If Google place pages (reviews, photos) are wanted again, the
+  agreed idea is a per-item pasted Google Maps share link (new column), not name
+  searches. Route links stay dropped (roadmap #9).
 
 - **New Trip screen (v1.32.0)**: `src/pages/AddTrip.tsx` (route `/add-trip`),
   reached from a "+ New trip" button in the Dashboard header; the first in-app way

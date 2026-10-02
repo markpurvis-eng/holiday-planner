@@ -25,12 +25,15 @@ export default function MapTab({
   tripStart,
   tripEnd,
   onJump,
+  focus = null,
 }: {
   bookings: Booking[]
   itinerary: ItineraryItem[]
   tripStart: string
   tripEnd: string
   onJump: (tab: JumpTab, id: string) => void
+  /** Open with this item's pin selected and zoomed to (the cards' "📍 Map" link). */
+  focus?: { kind: 'booking' | 'itinerary'; id: string } | null
 }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -38,7 +41,12 @@ export default function MapTab({
   const mapRef = useRef<L.Map | null>(null)
   const layerRef = useRef<L.LayerGroup | null>(null)
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
-  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [selectedKey, setSelectedKey] = useState<string | null>(() => {
+    if (!focus) return null
+    const item = buildMapPinItems(bookings, itinerary).find((i) => i.kind === focus.kind && i.id === focus.id)
+    return item ? `${item.lat.toFixed(5)},${item.lng.toFixed(5)}` : null
+  })
+  const appliedFocusRef = useRef<typeof focus>(null)
   const [mapHeight, setMapHeight] = useState(360)
 
   const allItems = useMemo(() => buildMapPinItems(bookings, itinerary), [bookings, itinerary])
@@ -135,6 +143,18 @@ export default function MapTab({
       maxZoom: 15,
     })
   }, [groups])
+
+  // Arriving from a card's "📍 Map" link: zoom to that item's pin. Runs
+  // after the fit-all effect above (effects run in order), so it wins, and
+  // only once per focus so later day-filter changes don't re-zoom.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !focus || appliedFocusRef.current === focus) return
+    const item = allItems.find((i) => i.kind === focus.kind && i.id === focus.id)
+    if (!item) return
+    appliedFocusRef.current = focus
+    map.setView([item.lat, item.lng], 16)
+  }, [focus, allItems, groups])
 
   // Nudge the map so the tapped pin isn't hidden under the card that opens
   // over the top of it.
