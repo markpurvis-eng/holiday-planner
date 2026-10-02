@@ -708,8 +708,8 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   (`GEOCODE_EMAIL`/`GEOCODE_PASSWORD` in the gitignored `.env`) so RLS applies as
   normal, and needs `NOMINATIM_CONTACT` because Nominatim's usage policy requires
   an identifying contact. Nominatim blocks automated fetches from cloud sandboxes,
-  so geocoding has to run from the laptop. No edit-screen field or map UI exists
-  yet; the Map tab (see next bullet) reads `pin_lat`/`pin_lng`.
+  so geocoding has to run from the laptop. The script is now for bulk back-fills;
+  day-to-day, the edit screens set pins themselves (next bullet but one).
 
 - **Map tab and Dashboard swipe (v1.29.0)**: `src/components/MapTab.tsx` (Leaflet +
   OpenStreetMap tiles, no API key) is a trip tab after Itinerary, loaded with
@@ -743,3 +743,18 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
 
 - The installable icon is SVG-only (see above) — a real PNG icon set is a good
   follow-up, not required for functionality.
+
+- **Address field on edit screens (v1.30.0)**: `EditBooking` and `EditItineraryItem`
+  (which also serves "Add itinerary item") have an Address box plus a collapsed
+  "Pin coordinates" box, both rendered by `src/components/AddressField.tsx` and
+  driven by `src/lib/useAddressPin.ts`. On Save, hand-edited coordinates win
+  (paste "lat, lng" from Google Maps, which is the reliable route for terminals
+  and resorts Nominatim can't find); otherwise an unchanged address that already
+  has a pin is left alone; otherwise `src/lib/geocode.ts` looks the address up
+  with Nominatim straight from the browser (one request per save, within the
+  usage policy). An exact match saves silently. A rough match (venue name
+  dropped), no match, or a failed lookup stops the save once with an amber message;
+  pressing Save again keeps the address without a pin (or with the rough pin).
+  Clearing both boxes clears the address and pin. "Check" previews the match
+  without saving. There is no Add Booking screen; bookings are created by Claude,
+  who should ask for a clear address when one is missing or ambiguous.

@@ -5,6 +5,8 @@ import { getBooking, getTrip, updateBooking } from '../lib/api'
 import type { Booking, PaymentStatus } from '../lib/types'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { CurrencyQuickPicks } from '../components/CurrencyQuickPicks'
+import { AddressField } from '../components/AddressField'
+import { useAddressPin } from '../lib/useAddressPin'
 
 export default function EditBooking() {
   const navigate = useNavigate()
@@ -28,6 +30,8 @@ export default function EditBooking() {
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(false)
+  const pin = useAddressPin(null)
+  const loadPin = pin.load
 
   useEffect(() => {
     if (!bookingId) return
@@ -46,11 +50,12 @@ export default function EditBooking() {
       setCancelled(b.cancelled)
       setExtractedDetails(b.extracted_details ?? '')
       setNotes(b.notes ?? '')
+      loadPin({ address: b.address, pin_lat: b.pin_lat, pin_lng: b.pin_lng })
     })
     if (tripId) {
       getTrip(tripId).then((t) => setTripLocked(t?.total_cost_locked_at != null))
     }
-  }, [bookingId, tripId])
+  }, [bookingId, tripId, loadPin])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -58,6 +63,8 @@ export default function EditBooking() {
     setSaving(true)
     setError(false)
     try {
+      const addressFields = await pin.resolveForSave()
+      if (!addressFields) return
       const currencyChanged = currency.toUpperCase() !== (booking.currency ?? '')
       const noLongerPaid = booking.payment_status === 'paid' && paymentStatus !== 'paid'
       // A previously-locked FX rate only makes sense for the currency it
@@ -80,6 +87,7 @@ export default function EditBooking() {
         cancelled,
         extracted_details: extractedDetails.trim() || null,
         notes: notes.trim() || null,
+        ...addressFields,
         ...(shouldClearLock ? { fx_rate_to_gbp: null, fx_rate_locked_at: null } : {}),
       })
       navigate(tripId ? `/trips/${tripId}?tab=bookings&highlight=${booking.id}` : '/')
@@ -127,6 +135,8 @@ export default function EditBooking() {
             className="w-full rounded-xl border border-stone-200 px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
           />
         </div>
+
+        <AddressField pin={pin} />
 
         <div className="flex gap-3">
           <div className="flex-1">

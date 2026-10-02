@@ -5,6 +5,8 @@ import { createItineraryItem, getItineraryItem, getTrip, updateItineraryItem } f
 import type { ItineraryItem, PaymentStatus, Trip } from '../lib/types'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { CurrencyQuickPicks } from '../components/CurrencyQuickPicks'
+import { AddressField } from '../components/AddressField'
+import { useAddressPin } from '../lib/useAddressPin'
 import { TypeQuickPicks } from '../components/TypeQuickPicks'
 import { clampToTripRange, nowTimeString, todayDateString } from '../lib/format'
 import {
@@ -40,6 +42,8 @@ export default function EditItineraryItem() {
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(false)
+  const pin = useAddressPin(null)
+  const loadPin = pin.load
 
   useEffect(() => {
     let stale = false
@@ -64,6 +68,7 @@ export default function EditItineraryItem() {
         setCancelled(i.cancelled)
         setExtractedDetails(i.extracted_details ?? '')
         setNotes(i.notes ?? '')
+        loadPin({ address: i.address, pin_lat: i.pin_lat, pin_lng: i.pin_lng })
       } else {
         // New item, added on the go — default to today/now (clamped inside
         // the trip's own dates, in case it's added before departure or
@@ -82,7 +87,7 @@ export default function EditItineraryItem() {
     return () => {
       stale = true
     }
-  }, [itemId, tripId])
+  }, [itemId, tripId, loadPin])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -90,6 +95,8 @@ export default function EditItineraryItem() {
     setSaving(true)
     setError(false)
     try {
+      const addressFields = await pin.resolveForSave()
+      if (!addressFields) return
       if (isNew) {
         if (!tripId) return
         const created = await createItineraryItem({
@@ -105,6 +112,7 @@ export default function EditItineraryItem() {
           cancelled,
           extracted_details: extractedDetails.trim() || null,
           notes: notes.trim() || null,
+          ...addressFields,
         })
         setLastItineraryType(type.trim())
         if (currency.trim()) setLastItineraryCurrency(currency.trim().toUpperCase())
@@ -131,6 +139,7 @@ export default function EditItineraryItem() {
         cancelled,
         extracted_details: extractedDetails.trim() || null,
         notes: notes.trim() || null,
+        ...addressFields,
         ...(shouldClearLock ? { fx_rate_to_gbp: null, fx_rate_locked_at: null } : {}),
       })
       navigate(tripId ? `/trips/${tripId}?tab=itinerary&highlight=${item.id}` : '/')
@@ -190,6 +199,8 @@ export default function EditItineraryItem() {
             className="w-full rounded-xl border border-stone-200 px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
           />
         </div>
+
+        <AddressField pin={pin} />
 
         <div className="flex gap-3">
           <div className="flex-1">

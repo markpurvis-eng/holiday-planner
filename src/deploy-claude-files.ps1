@@ -81,6 +81,9 @@ $SrcFileMap = @{
     'MoveAttachmentModal.tsx' = 'components\MoveAttachmentModal.tsx'
     'MapTab.tsx'          = 'components\MapTab.tsx'
     'mapPins.ts'          = 'lib\mapPins.ts'
+    'AddressField.tsx'    = 'components\AddressField.tsx'
+    'geocode.ts'          = 'lib\geocode.ts'
+    'useAddressPin.ts'    = 'lib\useAddressPin.ts'
     'deploy-claude-files.ps1' = 'deploy-claude-files.ps1'
 }
 
