@@ -483,9 +483,9 @@ export default function TripDetail() {
                   onMoveLink={(link) => setMovingAttachment({ kind: 'link', item: link })}
                 />
                 <div className="mt-2 flex justify-end gap-3">
-                  {googleMapsUrl(b) && (
+                  {googleMapsUrl(b, b.provider_name) && (
                     <a
-                      href={googleMapsUrl(b) ?? undefined}
+                      href={googleMapsUrl(b, b.provider_name) ?? undefined}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs font-medium text-teal-600 hover:text-teal-700"
@@ -627,9 +627,9 @@ export default function TripDetail() {
                       onMoveLink={(link) => setMovingAttachment({ kind: 'link', item: link })}
                     />
                     <div className="mt-2 flex justify-end gap-3">
-                      {googleMapsUrl(item) && (
+                      {googleMapsUrl(item, item.venue) && (
                         <a
-                          href={googleMapsUrl(item) ?? undefined}
+                          href={googleMapsUrl(item, item.venue) ?? undefined}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-xs font-medium text-teal-600 hover:text-teal-700"

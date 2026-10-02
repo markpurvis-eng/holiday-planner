@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { getTrips, getBookings, getItinerary, getDocuments, getLinks } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import type { Trip } from '../lib/types'
@@ -8,6 +8,8 @@ import { findNextUp } from '../lib/nextUp'
 import { TripCard, type TripAttachmentCounts } from '../components/TripCard'
 import { NextUpCard } from '../components/NextUpCard'
 import { LoadingSpinner } from '../components/LoadingSpinner'
+import { LongPressMenu } from '../components/LongPressMenu'
+import { DeleteTripDialog } from '../components/DeleteTripDialog'
 import { getYear, todayDateString } from '../lib/format'
 
 function YearDivider({ year }: { year: number }) {
@@ -26,9 +28,11 @@ function YearDivider({ year }: { year: number }) {
 function TripListWithYearDividers({
   trips,
   attachmentCounts,
+  onDelete,
 }: {
   trips: Trip[]
   attachmentCounts: Map<string, TripAttachmentCounts>
+  onDelete: (trip: Trip) => void
 }) {
   let lastYear: number | null = null
   return (
@@ -40,7 +44,9 @@ function TripListWithYearDividers({
         return (
           <div key={trip.id}>
             {showDivider && <YearDivider year={year} />}
-            <TripCard trip={trip} attachmentCounts={attachmentCounts.get(trip.id)} />
+            <LongPressMenu actions={[{ label: 'Delete trip…', destructive: true, onSelect: () => onDelete(trip) }]}>
+              <TripCard trip={trip} attachmentCounts={attachmentCounts.get(trip.id)} />
+            </LongPressMenu>
           </div>
         )
       })}
@@ -54,6 +60,7 @@ export default function Dashboard() {
   const [showPast, setShowPast] = useState(false)
   const [nextUp, setNextUp] = useState<{ tripId: string; entry: TimelineEntry } | null>(null)
   const [attachmentCounts, setAttachmentCounts] = useState<Map<string, TripAttachmentCounts>>(new Map())
+  const [tripToDelete, setTripToDelete] = useState<Trip | null>(null)
   const { signOut } = useAuth()
   const navigate = useNavigate()
 
@@ -127,9 +134,17 @@ export default function Dashboard() {
     <div className="mx-auto max-w-lg px-4 pb-24 pt-6">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-stone-800">My Trips</h1>
-        <button onClick={handleSignOut} className="text-sm text-stone-400 hover:text-stone-600">
-          Sign out
-        </button>
+        <div className="flex items-center gap-4">
+          <Link
+            to="/add-trip"
+            className="rounded-xl bg-teal-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-700"
+          >
+            + New trip
+          </Link>
+          <button onClick={handleSignOut} className="text-sm text-stone-400 hover:text-stone-600">
+            Sign out
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -148,7 +163,7 @@ export default function Dashboard() {
                 Supabase.
               </p>
             ) : (
-              <TripListWithYearDividers trips={active} attachmentCounts={attachmentCounts} />
+              <TripListWithYearDividers trips={active} attachmentCounts={attachmentCounts} onDelete={setTripToDelete} />
             )}
           </section>
 
@@ -163,12 +178,23 @@ export default function Dashboard() {
               </button>
               {showPast && (
                 <div className="mt-3 space-y-3 opacity-80">
-                  <TripListWithYearDividers trips={past} attachmentCounts={attachmentCounts} />
+                  <TripListWithYearDividers trips={past} attachmentCounts={attachmentCounts} onDelete={setTripToDelete} />
                 </div>
               )}
             </section>
           )}
         </>
+      )}
+
+      {tripToDelete && (
+        <DeleteTripDialog
+          trip={tripToDelete}
+          onClose={() => setTripToDelete(null)}
+          onDeleted={() => {
+            setTrips((ts) => ts.filter((t) => t.id !== tripToDelete.id))
+            setTripToDelete(null)
+          }}
+        />
       )}
     </div>
   )

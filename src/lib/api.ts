@@ -57,6 +57,54 @@ export async function createTrip(trip: Partial<Trip>): Promise<Trip> {
   return data
 }
 
+// What a trip holds, for the delete-trip confirmation. The auto-added
+// "photos" link (database trigger) is not counted: a trip with only that is
+// effectively empty.
+export type TripContents = {
+  bookings: number
+  itinerary: number
+  expenses: number
+  documents: number
+  todos: number
+  links: number
+}
+
+export async function getTripContents(tripId: string): Promise<TripContents> {
+  const count = async (table: string, extra?: (q: any) => any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    let q = supabase.from(table).select('id', { count: 'exact', head: true }).eq('trip_id', tripId)
+    if (extra) q = extra(q)
+    const { count: n, error } = await q
+    if (error) throw error
+    return n ?? 0
+  }
+  const [bookings, itinerary, expenses, documents, todos, links] = await Promise.all([
+    count('booking'),
+    count('itinerary_item'),
+    count('expense'),
+    count('document'),
+    count('todo'),
+    count('link', (q) => q.neq('label', 'photos')),
+  ])
+  return { bookings, itinerary, expenses, documents, todos, links }
+}
+
+// Deletes the trip row; bookings, itinerary items, documents, links, todos
+// and expenses go with it (ON DELETE CASCADE). Storage files aren't covered
+// by the cascade, so the uploaded documents and the generated itinerary PDF
+// are removed first. Like deleteDocument, a Storage failure is ignored.
+export async function deleteTrip(tripId: string): Promise<void> {
+  const docs = await getDocuments(tripId)
+  const paths = docs
+    .map((d) => extractStoragePath(d.file_url, 'documents'))
+    .filter((p): p is string => !!p)
+  if (paths.length > 0) {
+    await supabase.storage.from('documents').remove(paths)
+  }
+  await supabase.storage.from('itineraries').remove([`${tripId}.pdf`])
+  const { error } = await supabase.from('trip').delete().eq('id', tripId)
+  if (error) throw error
+}
+
 export async function updateTrip(id: string, updates: Partial<Trip>): Promise<Trip> {
   const { data, error } = await supabase
     .from('trip')

@@ -65,6 +65,7 @@ $SrcFileMap = @{
     'AllCosts.tsx'        = 'pages\AllCosts.tsx'
     'AddExpense.tsx'      = 'pages\AddExpense.tsx'
     'EditBooking.tsx'     = 'pages\EditBooking.tsx'
+    'AddTrip.tsx'         = 'pages\AddTrip.tsx'
     'EditItineraryItem.tsx' = 'pages\EditItineraryItem.tsx'
     'TripCard.tsx'        = 'components\TripCard.tsx'
     'WeatherForecast.tsx' = 'components\WeatherForecast.tsx'
@@ -84,6 +85,7 @@ $SrcFileMap = @{
     'AddressField.tsx'    = 'components\AddressField.tsx'
     'geocode.ts'          = 'lib\geocode.ts'
     'useAddressPin.ts'    = 'lib\useAddressPin.ts'
+    'DeleteTripDialog.tsx' = 'components\DeleteTripDialog.tsx'
     'deploy-claude-files.ps1' = 'deploy-claude-files.ps1'
 }
 

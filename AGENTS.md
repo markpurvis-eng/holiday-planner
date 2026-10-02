@@ -759,13 +759,48 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   without saving. There is no Add Booking screen; bookings are created by Claude,
   who should ask for a clear address when one is missing or ambiguous.
 
-- **Google Maps link on cards (v1.31.0)**: booking and itinerary cards on
-  `TripDetail.tsx` show a "📍 Map" link (opens Google Maps in a new tab) beside
-  Edit whenever the row has a pin or an address; `googleMapsUrl()` in
-  `src/lib/mapPins.ts` builds it. The pin wins when present
-  (`query=<lat>,<lng>`), because it is the point shown on the Map tab and is
-  often hand-corrected, while Google re-reading an address string can land
-  elsewhere; otherwise it falls back to the address text. Rows with neither
-  show no link. The booking begin/end markers on the Itinerary tab don't get
-  one (they jump to the booking, which has its own).
+- **Google Maps link on cards (v1.31.0, name-based since v1.31.1)**: booking and
+  itinerary cards on `TripDetail.tsx` show a "📍 Map" link (new tab) beside Edit
+  when the row has a pin or an address (a name alone doesn't count: flights and car hire have names but no place); `googleMapsUrl(entry, name)` in
+  `src/lib/mapPins.ts` builds it (`provider_name` for bookings, `venue` for
+  itinerary items). A bare pin only gives coordinates, with no reviews, photos or
+  opening hours, so the link searches by name (plus address when there is one),
+  and when there is a pin it uses the path form
+  `/maps/search/<text>/@lat,lng,17z` so the search is biased to that spot. The
+  `@lat,lng` form is not part of Google's documented URL API (the
+  `?api=1&query=` form is, but it has no location bias), so if it ever stops
+  working, fall back to the documented form. No pin: documented search on the
+  text. Pin but no text: bare pin. No pin and no address: no link. Google, not the app,
+  decides whether a search opens one place card or a results list.
+
+- **New Trip screen (v1.32.0)**: `src/pages/AddTrip.tsx` (route `/add-trip`),
+  reached from a "+ New trip" button in the Dashboard header; the first in-app way
+  to create a trip (before this, trips were inserted by Claude or by SQL). Fields:
+  name, start/end date (end follows start, and an end before the start is
+  rejected), optional trip type (the existing lookup table), and an optional main
+  destination. The destination is the trip's weather anchor, saved to
+  `destination_name`/`destination_lat`/`destination_lng`, and reuses
+  `AddressField` + `useAddressPin` (same Nominatim lookup, pasted "lat, lng" and
+  stop-once-then-keep behaviour as the edit screens; the component's label and
+  button wording are props). `nights` is computed from the dates and `status` is
+  set from them (past / active / upcoming), because the Dashboard splits its lists
+  on the stored status. Creating calls `createTrip()` in `api.ts` and goes to the
+  new trip. **The Google Photos link is NOT added here**: the `add_trip_photos_link()`
+  database trigger adds it on every trip insert, from this screen, from Claude and
+  from SQL alike, so inserting it in the app as well would create a duplicate. This
+  is why Missing Features #52 (move the trigger into app code) was dropped: the
+  trigger is the one place that covers every insert path. There is still no edit
+  screen for trips.
+
+- **Delete trip (v1.33.0, button colour fixed in v1.33.1)**: long-press a trip card on the Dashboard (Active or Past) and choose
+  "Delete trip…" (same `LongPressMenu` as documents/links; `TripCard` now forwards the
+  extra DOM props and skips navigation when the click was swallowed by the long-press).
+  `components/DeleteTripDialog.tsx` counts what's in the trip (`getTripContents()` in
+  `api.ts`: bookings, itinerary items, expenses, documents, to-dos, and links other than the
+  trigger-added `photos` one). An empty trip gets a plain confirm; a trip with content lists
+  what will be lost and needs the trip's name typed; if the count lookup fails it also needs
+  the name. `deleteTrip()` removes the uploaded document files and the `<tripId>.pdf` itinerary
+  file from Storage first (the cascade doesn't cover Storage), then deletes the trip row; the
+  FKs from booking, itinerary_item, document, link, todo and expense are ON DELETE CASCADE.
+  Unrecoverable, hence the guard.
 

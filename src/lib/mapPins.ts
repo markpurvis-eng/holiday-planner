@@ -95,20 +95,41 @@ export function daysBetween(start: string, end: string): string[] {
 }
 
 /**
- * Google Maps link for a booking / itinerary item, or null if it has neither
- * a pin nor an address. The pin wins when there is one: it's the point shown
- * on the Map tab (and often hand-corrected), whereas Google re-interpreting an
- * address string can land somewhere else. Falls back to the address text.
+ * Google Maps link for a booking / itinerary item, or null if there is
+ * nothing to point at.
+ *
+ * The aim is Google's full place page (reviews, photos, opening hours) rather
+ * than a bare pin, and that only comes from searching by *name*:
+ *  - name (+ address) and a pin: a name search biased to the pin, using the
+ *    path form /maps/search/<text>/@lat,lng,17z. The bias keeps "Hotel Sol"
+ *    from matching one in another country, and the pin is often hand-corrected.
+ *  - name (+ address) with no pin: the documented search URL with the text.
+ *  - a pin but no name or address: a bare pin at the coordinates.
+ *  - an address but no name: a search on the address text.
+ *  - neither a pin nor an address: no link, whatever the name (flights, car
+ *    hire and similar have names but no real place).
+ * Google decides whether a text search opens a single place card or a list of
+ * results, so the more specific the name and address, the better.
  */
-export function googleMapsUrl(entry: {
-  pin_lat: number | null
-  pin_lng: number | null
-  address: string | null
-}): string | null {
-  const base = 'https://www.google.com/maps/search/?api=1&query='
-  if (entry.pin_lat != null && entry.pin_lng != null) {
-    return `${base}${entry.pin_lat},${entry.pin_lng}`
+export function googleMapsUrl(
+  entry: { pin_lat: number | null; pin_lng: number | null; address: string | null },
+  name?: string | null,
+): string | null {
+  const text = [name?.trim(), entry.address?.trim()].filter(Boolean).join(', ')
+  const hasPin = entry.pin_lat != null && entry.pin_lng != null
+
+  // A name alone isn't enough: flights, car hire and the like have names but no
+  // real place, and a search for them would return junk. Needs a pin or address.
+  if (!hasPin && !entry.address?.trim()) return null
+
+  if (text && hasPin) {
+    return `https://www.google.com/maps/search/${encodeURIComponent(text)}/@${entry.pin_lat},${entry.pin_lng},17z`
   }
-  const address = entry.address?.trim()
-  return address ? `${base}${encodeURIComponent(address)}` : null
+  if (text) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(text)}`
+  }
+  if (hasPin) {
+    return `https://www.google.com/maps/search/?api=1&query=${entry.pin_lat},${entry.pin_lng}`
+  }
+  return null
 }

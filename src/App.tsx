@@ -13,6 +13,7 @@ import AddExpense from './pages/AddExpense'
 import EditBooking from './pages/EditBooking'
 import EditItineraryItem from './pages/EditItineraryItem'
 import Search from './pages/Search'
+import AddTrip from './pages/AddTrip'
 
 function Shell({ children }: { children: ReactNode }) {
   return (
@@ -94,6 +95,16 @@ export default function App() {
             <ProtectedRoute>
               <Shell>
                 <AddExpense />
+              </Shell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/add-trip"
+          element={
+            <ProtectedRoute>
+              <Shell>
+                <AddTrip />
               </Shell>
             </ProtectedRoute>
           }

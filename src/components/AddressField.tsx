@@ -4,23 +4,37 @@ const inputClass =
   'w-full rounded-xl border border-stone-200 px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500'
 
 /**
- * Address + map pin fields for the booking and itinerary edit screens.
+ * Address + map pin fields for the booking, itinerary and new-trip screens.
  * All state lives in useAddressPin; the parent calls resolveForSave() on submit.
+ * The wording defaults suit the edit screens; the new-trip screen overrides it.
  */
-export function AddressField({ pin }: { pin: AddressPinState }) {
+export function AddressField({
+  pin,
+  label = 'Address',
+  hint = '(for the map pin)',
+  placeholder = 'Full street address, town and country',
+  saveLabel = 'Save',
+}: {
+  pin: AddressPinState
+  label?: string
+  hint?: string
+  placeholder?: string
+  /** Name of the submit button, quoted in the "press ... again" messages. */
+  saveLabel?: string
+}) {
   const { address, setAddress, coordsText, setCoordsText, status, check } = pin
   const checking = status.kind === 'checking'
 
   return (
     <div>
       <label className="mb-1 block text-sm font-medium text-stone-600">
-        Address <span className="text-stone-400">(for the map pin)</span>
+        {label} <span className="text-stone-400">{hint}</span>
       </label>
       <textarea
         value={address}
         onChange={(e) => setAddress(e.target.value)}
         rows={2}
-        placeholder="Full street address, town and country"
+        placeholder={placeholder}
         className={inputClass}
       />
 
@@ -32,19 +46,19 @@ export function AddressField({ pin }: { pin: AddressPinState }) {
           )}
           {status.kind === 'approx' && (
             <span className="text-amber-700">
-              ⚠️ Only a rough match: {status.label}. Press Save again to keep this pin, or make the
+              ⚠️ Only a rough match: {status.label}. Press {saveLabel} again to keep this pin, or make the
               address more specific (or paste coordinates below).
             </span>
           )}
           {status.kind === 'notfound' && (
             <span className="text-amber-700">
-              ⚠️ Couldn't find that address. Press Save again to keep it without a pin, or make it
+              ⚠️ Couldn't find that address. Press {saveLabel} again to keep it without a pin, or make it
               more specific (or paste coordinates below).
             </span>
           )}
           {status.kind === 'lookup-failed' && (
             <span className="text-amber-700">
-              ⚠️ The address lookup didn't respond (offline?). Press Save again to keep the address
+              ⚠️ The address lookup didn't respond (offline?). Press {saveLabel} again to keep it
               without a pin.
             </span>
           )}

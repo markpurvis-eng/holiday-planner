@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import type { PointerEvent } from 'react'
+import type { HTMLAttributes, PointerEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { Trip } from '../lib/types'
 import { formatDate, daysUntil, formatMoney } from '../lib/format'
@@ -23,10 +23,14 @@ export type TripAttachmentCounts = { documents: number; links: number }
 export function TripCard({
   trip,
   attachmentCounts,
+  ...extra
 }: {
   trip: Trip
   attachmentCounts?: TripAttachmentCounts
-}) {
+} & HTMLAttributes<HTMLDivElement>) {
+  // LongPressMenu (Dashboard) clones its long-press handlers, click guard
+  // and no-select styling onto this component; they land on the card's div.
+  const { onClick: extraOnClick, className: extraClassName, style: extraStyle, ...extraHandlers } = extra
   const navigate = useNavigate()
   // Swipe left on the card opens that trip's Map tab. Pointer events cover
   // touch, pen and mouse drag, so it can be tried on desktop too.
@@ -69,7 +73,10 @@ export function TripCard({
     <div
       role="link"
       tabIndex={0}
-      onClick={() => {
+      {...extraHandlers}
+      onClick={(e) => {
+        extraOnClick?.(e)
+        if (e.defaultPrevented) return // swallowed: the click ending a long-press
         if (swiped.current) {
           swiped.current = false
           return
@@ -81,11 +88,11 @@ export function TripCard({
       onPointerCancel={() => {
         swipeStart.current = null
       }}
-      style={{ touchAction: 'pan-y' }}
+      style={{ ...extraStyle, touchAction: 'pan-y' }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') navigate(`/trips/${trip.id}`)
       }}
-      className="flex cursor-pointer items-center gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100 transition hover:shadow-md active:scale-[0.99]"
+      className={`${extraClassName ?? ''} flex cursor-pointer items-center gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100 transition hover:shadow-md active:scale-[0.99]`}
     >
       <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-3xl">
         {icon}
