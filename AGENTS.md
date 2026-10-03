@@ -775,6 +775,23 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   agreed idea is a per-item pasted Google Maps share link (new column), not name
   searches. Route links stay dropped (roadmap #9).
 
+- **To-do reminder date + weekly email (v1.35.0, schema v3)**: `todo.remind_from`
+  (nullable `date`). The Todos tab's add form has an optional "Start reminding
+  from" date; each open to-do shows "⏰ Set reminder date" / "Reminders start
+  dd/mm/yyyy" (amber while in the future) / "Reminding since …", and tapping it
+  opens an inline date picker with Clear (`setTodoRemindFrom()` in `api.ts`,
+  `createTodo()` takes an optional third argument). Null means "include
+  straight away", so existing to-dos behave as before. The date only affects
+  the **weekly email**, which is a Claude scheduled task ("Holiday weekly todo
+  email", Mondays 07:58 UK time), not app code: it reads open to-dos on
+  upcoming/active trips whose `remind_from` is null or has been reached
+  (`remind_from <= today` in Europe/London), groups them by trip, and sends one
+  email via Gmail to exactly two fixed addresses (mark.purvis@ and
+  andi.purvis@barbrookers.co.uk); it sends nothing in a week with no matching
+  to-dos. The query lives in that task's prompt, so a change to the to-do model
+  needs the task updated too. The app itself still shows every to-do
+  regardless of `remind_from`.
+
 - **New Trip screen (v1.32.0)**: `src/pages/AddTrip.tsx` (route `/add-trip`),
   reached from a "+ New trip" button in the Dashboard header; the first in-app way
   to create a trip (before this, trips were inserted by Claude or by SQL). Fields:

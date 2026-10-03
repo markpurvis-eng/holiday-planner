@@ -361,6 +361,10 @@ create table if not exists todo (
   created_at timestamptz not null default now()
 );
 
+-- Schema v3: the weekly to-do email only includes a to-do from this date on
+-- (null = included straight away).
+alter table todo add column if not exists remind_from date;
+
 -- Data API grants (required for new tables from 30 Oct 2026). RLS below still
 -- controls which rows are visible; anon is deliberately not granted.
 grant select, insert, update, delete on public.todo to authenticated;
@@ -466,5 +470,6 @@ create policy "itineraries bucket public read"
 
 insert into schema_version (version, description) values
   (1, 'Baseline: added Data API grants to all tables and the schema_version table'),
-  (2, 'Map pins: address, pin_lat, pin_lng on booking and itinerary_item')
+  (2, 'Map pins: address, pin_lat, pin_lng on booking and itinerary_item'),
+  (3, 'Todos: remind_from date (weekly email includes a todo only from this date)')
 on conflict (version) do nothing;

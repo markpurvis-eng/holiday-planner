@@ -421,10 +421,27 @@ export async function getTodos(tripId: string): Promise<Todo[]> {
   return data ?? []
 }
 
-export async function createTodo(tripId: string, text: string): Promise<Todo> {
+export async function createTodo(
+  tripId: string,
+  text: string,
+  remindFrom: string | null = null
+): Promise<Todo> {
   const { data, error } = await supabase
     .from('todo')
-    .insert({ trip_id: tripId, text, done: false })
+    .insert({ trip_id: tripId, text, done: false, remind_from: remindFrom })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+// remind_from: when the weekly email should start including this to-do
+// (null = include straight away).
+export async function setTodoRemindFrom(id: string, remindFrom: string | null): Promise<Todo> {
+  const { data, error } = await supabase
+    .from('todo')
+    .update({ remind_from: remindFrom })
+    .eq('id', id)
     .select()
     .single()
   if (error) throw error

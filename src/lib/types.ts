@@ -135,4 +135,6 @@ export type Todo = {
   text: string
   done: boolean
   created_at: string
+  /** YYYY-MM-DD; the weekly email leaves this to-do out until that date. null = always included. */
+  remind_from: string | null
 }

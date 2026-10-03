@@ -9,6 +9,7 @@ import {
   getLinks,
   getTodos,
   createTodo,
+  setTodoRemindFrom,
   toggleTodo,
   deleteDocument,
   updateDocument,
@@ -71,6 +72,8 @@ export default function TripDetail() {
   const [mapFocus, setMapFocus] = useState<{ kind: 'booking' | 'itinerary'; id: string } | null>(null)
   const autoScrolledTabRef = useRef<Tab | null>(null)
   const [newTodo, setNewTodo] = useState('')
+  const [newTodoRemindFrom, setNewTodoRemindFrom] = useState('')
+  const [editingReminderId, setEditingReminderId] = useState<string | null>(null)
   const [hideCancelled] = useState(() => getHideCancelledItems())
   const [tripHeaderExpanded, setTripHeaderExpanded] = useState(false)
   const [paymentFilters, setPaymentFilters] = useState<Set<Booking['payment_status']>>(new Set())
@@ -188,9 +191,15 @@ export default function TripDetail() {
   async function handleAddTodo(e: FormEvent) {
     e.preventDefault()
     if (!id || !newTodo.trim()) return
-    const todo = await createTodo(id, newTodo.trim())
+    const todo = await createTodo(id, newTodo.trim(), newTodoRemindFrom || null)
     setTodos((prev) => [...prev, todo])
     setNewTodo('')
+    setNewTodoRemindFrom('')
+  }
+
+  async function handleSetReminder(todo: Todo, remindFrom: string | null) {
+    const updated = await setTodoRemindFrom(todo.id, remindFrom)
+    setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
   }
 
   async function handleToggleTodo(todo: Todo) {
@@ -809,38 +818,97 @@ export default function TripDetail() {
 
         {tab === 'todos' && (
           <>
-            <form onSubmit={handleAddTodo} className="flex gap-2">
-              <input
-                value={newTodo}
-                onChange={(e) => setNewTodo(e.target.value)}
-                placeholder="Add a to-do…"
-                className="flex-1 rounded-xl border border-stone-200 px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-              />
-              <button
-                type="submit"
-                className="rounded-xl bg-teal-600 px-4 font-medium text-white hover:bg-teal-700"
-              >
-                Add
-              </button>
+            <form onSubmit={handleAddTodo} className="space-y-2">
+              <div className="flex gap-2">
+                <input
+                  value={newTodo}
+                  onChange={(e) => setNewTodo(e.target.value)}
+                  placeholder="Add a to-do…"
+                  className="flex-1 rounded-xl border border-stone-200 px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                />
+                <button
+                  type="submit"
+                  className="rounded-xl bg-teal-600 px-4 font-medium text-white hover:bg-teal-700"
+                >
+                  Add
+                </button>
+              </div>
+              <label className="flex items-center gap-2 text-xs text-stone-500">
+                ⏰ Start reminding from
+                <input
+                  type="date"
+                  value={newTodoRemindFrom}
+                  onChange={(e) => setNewTodoRemindFrom(e.target.value)}
+                  className="rounded-lg border border-stone-200 px-2 py-1 text-xs"
+                />
+                <span className="text-stone-400">(optional, for the weekly email)</span>
+              </label>
             </form>
             {todos.length === 0 && <EmptyState text="No to-dos yet." />}
             <div className="space-y-2">
-              {todos.map((todo) => (
-                <label
-                  key={todo.id}
-                  className="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-stone-100"
-                >
-                  <input
-                    type="checkbox"
-                    checked={todo.done}
-                    onChange={() => handleToggleTodo(todo)}
-                    className="h-5 w-5 rounded border-stone-300 text-teal-600 focus:ring-teal-500"
-                  />
-                  <span className={todo.done ? 'text-stone-400 line-through' : 'text-stone-700'}>
-                    {todo.text}
-                  </span>
-                </label>
-              ))}
+              {todos.map((todo) => {
+                const waiting = !todo.done && todo.remind_from != null && todo.remind_from > todayDateString()
+                return (
+                  <div
+                    key={todo.id}
+                    className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-stone-100"
+                  >
+                    <label className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={todo.done}
+                        onChange={() => handleToggleTodo(todo)}
+                        className="h-5 w-5 rounded border-stone-300 text-teal-600 focus:ring-teal-500"
+                      />
+                      <span className={todo.done ? 'text-stone-400 line-through' : 'text-stone-700'}>
+                        {todo.text}
+                      </span>
+                    </label>
+                    {!todo.done && (
+                      <div className="mt-1 pl-8 text-xs">
+                        {editingReminderId === todo.id ? (
+                          <span className="flex items-center gap-2">
+                            <input
+                              type="date"
+                              defaultValue={todo.remind_from ?? ''}
+                              onChange={(e) => handleSetReminder(todo, e.target.value || null)}
+                              className="rounded-lg border border-stone-200 px-2 py-1"
+                            />
+                            {todo.remind_from && (
+                              <button
+                                type="button"
+                                onClick={() => handleSetReminder(todo, null)}
+                                className="text-stone-500 hover:text-stone-700"
+                              >
+                                Clear
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setEditingReminderId(null)}
+                              className="font-medium text-teal-600 hover:text-teal-700"
+                            >
+                              Done
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setEditingReminderId(todo.id)}
+                            className={waiting ? 'text-amber-700' : 'text-stone-400 hover:text-stone-600'}
+                          >
+                            {todo.remind_from
+                              ? waiting
+                                ? `⏰ Reminders start ${formatDate(todo.remind_from)}`
+                                : `⏰ Reminding since ${formatDate(todo.remind_from)}`
+                              : '⏰ Set reminder date'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </>
         )}
