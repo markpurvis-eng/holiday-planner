@@ -775,12 +775,14 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   agreed idea is a per-item pasted Google Maps share link (new column), not name
   searches. Route links stay dropped (roadmap #9).
 
-- **To-do reminder date + weekly email (v1.35.0, schema v3)**: `todo.remind_from`
+- **To-do reminder date + weekly email (v1.35.0, schema v3; edit added in v1.35.1)**: `todo.remind_from`
   (nullable `date`). The Todos tab's add form has an optional "Start reminding
   from" date; each open to-do shows "⏰ Set reminder date" / "Reminders start
-  dd/mm/yyyy" (amber while in the future) / "Reminding since …", and tapping it
-  opens an inline date picker with Clear (`setTodoRemindFrom()` in `api.ts`,
-  `createTodo()` takes an optional third argument). Null means "include
+  dd/mm/yyyy" (amber while in the future) / "Reminding since …". Each open or done to-do has an
+  "Edit" button (tapping the reminder line does the same) that turns the row into
+  an inline editor for the text and the date, with Clear, Cancel and Save; Save is
+  disabled for blank text and sends both fields in one `updateTodo()` call
+  (`api.ts`; `createTodo()` takes an optional third argument for the date). Null means "include
   straight away", so existing to-dos behave as before. The date only affects
   the **weekly email**, which is a Claude scheduled task ("Holiday weekly todo
   email", Mondays 07:58 UK time), not app code: it reads open to-dos on

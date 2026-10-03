@@ -9,7 +9,7 @@ import {
   getLinks,
   getTodos,
   createTodo,
-  setTodoRemindFrom,
+  updateTodo,
   toggleTodo,
   deleteDocument,
   updateDocument,
@@ -73,7 +73,11 @@ export default function TripDetail() {
   const autoScrolledTabRef = useRef<Tab | null>(null)
   const [newTodo, setNewTodo] = useState('')
   const [newTodoRemindFrom, setNewTodoRemindFrom] = useState('')
-  const [editingReminderId, setEditingReminderId] = useState<string | null>(null)
+  // One to-do at a time can be open for editing; the drafts hold its text/date until Save.
+  const [editingTodoId, setEditingTodoId] = useState<string | null>(null)
+  const [draftTodoText, setDraftTodoText] = useState('')
+  const [draftTodoRemindFrom, setDraftTodoRemindFrom] = useState('')
+  const [todoSaveError, setTodoSaveError] = useState(false)
   const [hideCancelled] = useState(() => getHideCancelledItems())
   const [tripHeaderExpanded, setTripHeaderExpanded] = useState(false)
   const [paymentFilters, setPaymentFilters] = useState<Set<Booking['payment_status']>>(new Set())
@@ -197,9 +201,24 @@ export default function TripDetail() {
     setNewTodoRemindFrom('')
   }
 
-  async function handleSetReminder(todo: Todo, remindFrom: string | null) {
-    const updated = await setTodoRemindFrom(todo.id, remindFrom)
-    setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+  function startEditingTodo(todo: Todo) {
+    setEditingTodoId(todo.id)
+    setDraftTodoText(todo.text)
+    setDraftTodoRemindFrom(todo.remind_from ?? '')
+    setTodoSaveError(false)
+  }
+
+  async function handleSaveTodo(todo: Todo) {
+    const text = draftTodoText.trim()
+    if (!text) return
+    setTodoSaveError(false)
+    try {
+      const updated = await updateTodo(todo.id, { text, remind_from: draftTodoRemindFrom || null })
+      setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+      setEditingTodoId(null)
+    } catch {
+      setTodoSaveError(true)
+    }
   }
 
   async function handleToggleTodo(todo: Todo) {
@@ -848,63 +867,93 @@ export default function TripDetail() {
             <div className="space-y-2">
               {todos.map((todo) => {
                 const waiting = !todo.done && todo.remind_from != null && todo.remind_from > todayDateString()
-                return (
-                  <div
-                    key={todo.id}
-                    className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-stone-100"
-                  >
-                    <label className="flex items-center gap-3">
+                if (editingTodoId === todo.id) {
+                  return (
+                    <div key={todo.id} className="space-y-2 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-teal-300">
                       <input
-                        type="checkbox"
-                        checked={todo.done}
-                        onChange={() => handleToggleTodo(todo)}
-                        className="h-5 w-5 rounded border-stone-300 text-teal-600 focus:ring-teal-500"
+                        value={draftTodoText}
+                        onChange={(e) => setDraftTodoText(e.target.value)}
+                        aria-label="To-do text"
+                        autoFocus
+                        className="w-full rounded-xl border border-stone-200 px-3 py-2 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
                       />
-                      <span className={todo.done ? 'text-stone-400 line-through' : 'text-stone-700'}>
-                        {todo.text}
-                      </span>
-                    </label>
-                    {!todo.done && (
-                      <div className="mt-1 pl-8 text-xs">
-                        {editingReminderId === todo.id ? (
-                          <span className="flex items-center gap-2">
-                            <input
-                              type="date"
-                              defaultValue={todo.remind_from ?? ''}
-                              onChange={(e) => handleSetReminder(todo, e.target.value || null)}
-                              className="rounded-lg border border-stone-200 px-2 py-1"
-                            />
-                            {todo.remind_from && (
-                              <button
-                                type="button"
-                                onClick={() => handleSetReminder(todo, null)}
-                                className="text-stone-500 hover:text-stone-700"
-                              >
-                                Clear
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => setEditingReminderId(null)}
-                              className="font-medium text-teal-600 hover:text-teal-700"
-                            >
-                              Done
-                            </button>
-                          </span>
-                        ) : (
+                      <label className="flex items-center gap-2 text-xs text-stone-500">
+                        ⏰ Start reminding from
+                        <input
+                          type="date"
+                          value={draftTodoRemindFrom}
+                          onChange={(e) => setDraftTodoRemindFrom(e.target.value)}
+                          className="rounded-lg border border-stone-200 px-2 py-1 text-xs"
+                        />
+                        {draftTodoRemindFrom && (
                           <button
                             type="button"
-                            onClick={() => setEditingReminderId(todo.id)}
-                            className={waiting ? 'text-amber-700' : 'text-stone-400 hover:text-stone-600'}
+                            onClick={() => setDraftTodoRemindFrom('')}
+                            className="text-stone-500 hover:text-stone-700"
                           >
-                            {todo.remind_from
-                              ? waiting
-                                ? `⏰ Reminders start ${formatDate(todo.remind_from)}`
-                                : `⏰ Reminding since ${formatDate(todo.remind_from)}`
-                              : '⏰ Set reminder date'}
+                            Clear
                           </button>
                         )}
+                      </label>
+                      {todoSaveError && (
+                        <p className="text-xs text-red-500">Couldn't save — check your connection and try again.</p>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingTodoId(null)}
+                          className="flex-1 rounded-xl bg-stone-100 py-2 text-sm font-medium text-stone-600 hover:bg-stone-200"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSaveTodo(todo)}
+                          disabled={!draftTodoText.trim()}
+                          className="flex-1 rounded-xl bg-teal-600 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-60"
+                        >
+                          Save
+                        </button>
                       </div>
+                    </div>
+                  )
+                }
+                return (
+                  <div key={todo.id} className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-stone-100">
+                    <div className="flex items-center gap-3">
+                      <label className="flex min-w-0 flex-1 items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={todo.done}
+                          onChange={() => handleToggleTodo(todo)}
+                          className="h-5 w-5 shrink-0 rounded border-stone-300 text-teal-600 focus:ring-teal-500"
+                        />
+                        <span className={todo.done ? 'text-stone-400 line-through' : 'text-stone-700'}>
+                          {todo.text}
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => startEditingTodo(todo)}
+                        className="shrink-0 text-xs font-medium text-teal-600 hover:text-teal-700"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                    {!todo.done && (
+                      <p className="mt-1 pl-8 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => startEditingTodo(todo)}
+                          className={waiting ? 'text-amber-700' : 'text-stone-400 hover:text-stone-600'}
+                        >
+                          {todo.remind_from
+                            ? waiting
+                              ? `⏰ Reminders start ${formatDate(todo.remind_from)}`
+                              : `⏰ Reminding since ${formatDate(todo.remind_from)}`
+                            : '⏰ Set reminder date'}
+                        </button>
+                      </p>
                     )}
                   </div>
                 )
@@ -939,4 +988,4 @@ function EmptyState({ text }: { text: string }) {
       {text}
     </p>
   )
-}
+}

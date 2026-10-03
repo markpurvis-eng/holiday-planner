@@ -435,15 +435,13 @@ export async function createTodo(
   return data
 }
 
-// remind_from: when the weekly email should start including this to-do
-// (null = include straight away).
-export async function setTodoRemindFrom(id: string, remindFrom: string | null): Promise<Todo> {
-  const { data, error } = await supabase
-    .from('todo')
-    .update({ remind_from: remindFrom })
-    .eq('id', id)
-    .select()
-    .single()
+// Edits a to-do's text and/or its remind_from date (when the weekly email
+// should start including it; null = include straight away).
+export async function updateTodo(
+  id: string,
+  updates: Partial<Pick<Todo, 'text' | 'remind_from'>>
+): Promise<Todo> {
+  const { data, error } = await supabase.from('todo').update(updates).eq('id', id).select().single()
   if (error) throw error
   return data
 }
