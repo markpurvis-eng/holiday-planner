@@ -29,11 +29,13 @@ guides), useful links, and to-dos, all in one place.
    ```
 
 3. Set up the database: open the Supabase SQL editor for your project and run the
-   contents of [`supabase/schema.sql`](supabase/schema.sql) once. This creates all
-   tables, seeds starter trip types, enables row-level security with a permissive
-   policy for authenticated users, and creates the `documents` storage bucket. The
-   script is idempotent (`create table if not exists`, `add column if not exists`),
-   so it's also safe to re-run after pulling schema changes.
+   contents of [`supabase/schema.sql`](supabase/schema.sql) once. It is a generated
+   snapshot of the live schema: all tables, row-level security with a permissive
+   policy for authenticated users, Data API grants, and the `documents` and
+   `itineraries` storage buckets with their policies. It is idempotent, so it is safe
+   to re-run, but it holds no row data (trip types and everything else come from a
+   backup). Schema changes are migration files in `supabase/migrations/`; the file is
+   regenerated with `node scripts/gen-schema.mjs`.
 
 4. Create at least one user in Supabase Auth (Authentication → Users → Add user) —
    this app uses a single shared household login rather than per-user accounts.
@@ -65,3 +67,11 @@ Documents and links can attach at three levels: the whole trip, a specific booki
 (`booking_id`), or a specific itinerary item (`itinerary_item_id`) — e.g. a
 screenshot of a restaurant confirmation attached to that one dinner reservation
 rather than the trip as a whole.
+
+## Backups
+
+The Supabase project has no automatic backups, so `scripts/backup.mjs` backs up the
+database and the Storage files (`go backup hpa [label]`, or
+`node scripts/backup.mjs [label]`). Setup, scheduling and the restore steps are in
+[`docs/backup-and-restore.md`](docs/backup-and-restore.md).
+

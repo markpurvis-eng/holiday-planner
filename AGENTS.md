@@ -22,10 +22,17 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   Settings
 - `src/components/` — shared presentational pieces: TripCard, BottomNav, TabBar,
   DocumentGroup, LoadingSpinner
-- `supabase/schema.sql` — hand-written SQL schema, RLS policies, and storage bucket
-  setup. Must be run manually in the Supabase SQL editor; nothing in this repo can
-  execute it automatically (see "Non-obvious decisions" below). Written to be
-  idempotent so it's safe to re-run after pulling schema changes.
+- `supabase/schema.sql` — GENERATED snapshot of the live schema (tables, RLS,
+  policies, grants, storage buckets and policies, schema_version history). Never
+  hand-edited and not how changes are made: regenerate it with
+  `node scripts/gen-schema.mjs` after each migration. Idempotent, so it can also
+  build an empty project.
+- `supabase/migrations/` — one SQL file per schema change, plus a baseline of the
+  schema at v3 (see "Database migrations and backups" at the end of this file).
+- `scripts/` — `backup.mjs` (database + Storage backup), `restore-storage.mjs`,
+  `gen-schema.mjs`, `geocode-pins.mjs` (one-off pin look-up), `sql/schema-catalog.sql`
+  and `lib/` (shared helpers).
+- `docs/backup-and-restore.md` — backup setup, scheduling and the restore runbook.
 
 ## Conventions
 
@@ -43,12 +50,11 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
 - **Supabase instead of Netlify DB**: the user has an existing Supabase project they
   want to keep using for auth/DB/storage. Netlify DB / Drizzle was explicitly ruled
   out for this project even though it's the more typical Netlify-native path.
-- **Schema not applied automatically**: only a Supabase anon (public) key was
-  provided, not a service-role key or Supabase CLI access token, so migrations
-  cannot be run from this environment. `supabase/schema.sql` is written to be
-  idempotent (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`,
-  `ON CONFLICT DO NOTHING`) and must be pasted into the Supabase SQL editor once by
-  a human with dashboard access.
+- **Schema changes (rewritten v1.36.0)**: the original build had only the anon key,
+  so `schema.sql` was hand-written and pasted into the SQL editor. Claude now applies
+  changes to the live project with the Supabase `apply_migration` tool, and each one
+  is saved as a file in `supabase/migrations/`; `schema.sql` is generated from the
+  live database. See "Database migrations and backups" at the end of this file.
 - **SVG-only app icon**: without a headless canvas/image library available, PNG
   icon generation wasn't practical. The manifest instead ships a single 512x512 SVG
   icon (`public/icon.svg`) reused for both `any` and `maskable` purposes. Chrome/
@@ -824,4 +830,41 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   file from Storage first (the cascade doesn't cover Storage), then deletes the trip row; the
   FKs from booking, itinerary_item, document, link, todo and expense are ON DELETE CASCADE.
   Unrecoverable, hence the guard.
+
+- **Database migrations and backups (v1.36.0, roadmap #51)**: the Supabase project
+  is on the Free plan (no automatic backups, no point-in-time recovery), so backups
+  are scripts in `scripts/`; the runbook is `docs/backup-and-restore.md`.
+  **Schema change workflow:** (1) `go backup hpa pre-v<N>` (a labelled backup is never
+  pruned); (2) `apply_migration`, then save the SQL as
+  `supabase/migrations/<version>_<name>.sql`, where `<version>` is the 14-digit number
+  `list_migrations` shows; the migration inserts its own `schema_version` row and, for a
+  new table, its Data API grants and RLS policy; (3) `go schema hpa`, which regenerates
+  `supabase/schema.sql` from the live database (`node scripts/gen-schema.mjs --check`
+  says whether it is current). Tell Mark before any change touching `trip` or `todo`
+  (the weekly to-do email task queries them).
+  **`backup.mjs`** writes to `HPA_BACKUP_DIR` (default
+  `C:\Users\markp\OneDrive\Sync\Programs\HolidayPlannerApp`): `db\<timestamp>[_label]\`
+  (`public.sql` pg_dump with data, `schema-snapshot.sql`, `storage-definitions.sql`,
+  `manifest.json`) and a never-deleting incremental `storage\` mirror of both buckets
+  (Storage files are not covered by the ON DELETE CASCADE, so the DB dump alone is not
+  enough). Unlabelled runs keep the newest 8. It also reports orphans (files with no
+  `document` row, rows with no file, itinerary PDFs with no trip; the dashboard's
+  `.emptyFolderPlaceholder` is ignored, v1.36.1) and deletes nothing.
+  Needs `HPA_DB_URL` plus the household login (`GEOCODE_EMAIL`/`GEOCODE_PASSWORD`) in
+  `.env`. `restore-storage.mjs` uploads the mirror back (never overwrites by default).
+  **Baseline, not history:** the 18 migrations recorded by Supabase before v1.36.0 are
+  not back-filled; `supabase/migrations/20261004200000_baseline.sql` is the schema at
+  v3, built from the live catalog and checked by rebuilding it in an empty Postgres and
+  comparing every table, constraint, policy, grant and bucket. It was NOT applied to
+  live. `document.file_url` holds full public URLs including the project reference, so
+  restoring into a different project needs the URL rewrite in the runbook.
+  **Found while doing this (no change made):** live gives `anon`, `authenticated` and
+  `service_role` ALL privileges on every public table (Supabase's defaults), where the
+  old hand-written `schema.sql` intended select/insert/update/delete for
+  `authenticated` and `service_role` only; RLS has no `anon` policy, so rows are still
+  protected, but TRUNCATE is not subject to RLS. Live `itinerary_item.cost` is
+  `numeric(10,2)` (the old file said `numeric`) and live has no
+  `itinerary_item_payment_status_check` (the old file had one); the old file also put
+  `pgcrypto` in `public` while live has it in `extensions`. The generated file mirrors
+  live. Any hardening would be a migration of its own, agreed with Mark first.
 
