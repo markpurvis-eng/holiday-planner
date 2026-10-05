@@ -61,21 +61,41 @@ What to read in the output:
 
 ## Scheduling it (Windows Task Scheduler)
 
+The PC is switched on and off ad hoc, so there is no fixed time. Instead a check runs
+after logon and every 4 hours while the PC is on: `scripts\backup-if-due.mjs` looks for
+the newest successful backup (labelled or not) and runs `backup.mjs` only if it is more
+than 7 days old. Otherwise it logs "not due" and exits. A failed or interrupted run does
+not count as a backup, so it is retried at the next check (the Storage mirror is
+incremental, so a retry carries on where it stopped). If the network is not up yet, it
+waits up to 10 minutes for the Supabase API before giving up until the next check.
+
 Set it up on one machine only, the one that is on most often.
 
-1. Task Scheduler, Create Task (not Basic Task). Name: `Holiday Planner backup`.
+1. Task Scheduler, Create Task (not Basic Task). Name: `Holiday Planner backup check`.
 2. General: leave "Run only when user is logged on" selected.
-3. Triggers: New, Weekly, Sunday, 03:00.
+3. Triggers: New, Begin the task "At log on", Specific user (you). Tick "Delay task for"
+   2 minutes. Tick "Repeat task every" 4 hours, "for a duration of" Indefinitely. Enabled.
 4. Actions: New, Start a program.
-   - Program/script: `node` (or the full path, `C:\Program Files\nodejs\node.exe`)
-   - Add arguments: `"C:\Users\markp\Programs\Src\Holiday Planner App\holiday-planner\scripts\backup.mjs"`
+   - Program/script: `C:\Program Files\nodejs\node.exe`
+   - Add arguments: `"C:\Users\markp\Programs\Src\Holiday Planner App\holiday-planner\scripts\backup-if-due.mjs"`
    - Start in: `C:\Users\markp\Programs\Src\Holiday Planner App\holiday-planner`
 5. Conditions: tick "Start only if the following network connection is available: Any
-   connection". Settings: tick "Run task as soon as possible after a scheduled start is
-   missed".
-6. OK, then right-click the task, Run, and check `backup.log` and the new folder.
+   connection". Untick "Start the task only if the computer is on AC power" if it is a
+   laptop. Settings: tick "Run task as soon as possible after a scheduled start is
+   missed"; "If the task is already running, then the following rule applies": Do not
+   start a new instance.
+6. OK. Right-click the task, Run, and check `backup.log` in the backup folder: it should
+   say either "not due" or start a backup.
 
-Leave the scheduled run unlabelled so old ones are pruned.
+A console window may flash up while it runs. If the PC shuts down at 23:30 part-way
+through a backup, nothing is lost: it is not counted, and the next check redoes it
+(`backup.lock` is ignored once it is 3 hours old).
+
+To force a backup now regardless of age: `node scripts\backup-if-due.mjs --force`
+(or `go backup hpa`). Optional settings in `.env`: `HPA_BACKUP_MAX_AGE_DAYS`,
+`HPA_BACKUP_WAIT_MINUTES`.
+
+Backups from the check are unlabelled, so old ones are pruned (newest 8 kept).
 
 ## Changing the schema
 

@@ -850,6 +850,13 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   enough). Unlabelled runs keep the newest 8. It also reports orphans (files with no
   `document` row, rows with no file, itinerary PDFs with no trip; the dashboard's
   `.emptyFolderPlaceholder` is ignored, v1.36.1) and deletes nothing.
+  **`backup-if-due.mjs`** (v1.36.2) is what the Windows scheduled task runs, at logon and
+  every 4 hours: it finds the newest `db\*\manifest.json` with `ok: true` (labelled or
+  not), and runs `backup.mjs` only if that is more than `HPA_BACKUP_MAX_AGE_DAYS` (7) old.
+  Failed/partial runs don't count, so they retry at the next check. It waits up to
+  `HPA_BACKUP_WAIT_MINUTES` (10) for the Supabase API to answer, uses `backup.lock` (stale
+  after 3 h) so two checks never overlap, and takes `--force`. The PC is on ad hoc and
+  idles off at 23:30, hence no fixed-time trigger.
   Needs `HPA_DB_URL` plus the household login (`GEOCODE_EMAIL`/`GEOCODE_PASSWORD`) in
   `.env`. `restore-storage.mjs` uploads the mirror back (never overwrites by default).
   **Baseline, not history:** the 18 migrations recorded by Supabase before v1.36.0 are
