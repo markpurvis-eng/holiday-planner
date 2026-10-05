@@ -12,6 +12,13 @@ export function backupDir() {
   return process.env.HPA_BACKUP_DIR || DEFAULT_BACKUP_DIR
 }
 
+// Logs live with the other apps' logs, not in the backup folder.
+export const DEFAULT_LOG_DIR = path.join(os.homedir(), 'OneDrive', 'Sync', 'Programs', 'Logs', 'Holiday-Planner-App')
+
+export function logDir() {
+  return process.env.HPA_LOG_DIR || DEFAULT_LOG_DIR
+}
+
 // Windows-illegal characters (and %, so decoding is unambiguous) are written
 // as %XX; a trailing dot or space is encoded too. Object paths the app
 // generates never need this, but a mirror must not fail on an odd name.

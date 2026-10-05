@@ -850,6 +850,9 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   enough). Unlabelled runs keep the newest 8. It also reports orphans (files with no
   `document` row, rows with no file, itinerary PDFs with no trip; the dashboard's
   `.emptyFolderPlaceholder` is ignored, v1.36.1) and deletes nothing.
+  **Log:** `backup.log` goes to `HPA_LOG_DIR` (default
+  `C:\Users\markp\OneDrive\Sync\Programs\Logs\Holiday-Planner-App`, v1.36.3), matching the
+  other apps, not into the backup folder.
   **`backup-if-due.mjs`** (v1.36.2) is what the Windows scheduled task runs, at logon and
   every 4 hours: it finds the newest `db\*\manifest.json` with `ok: true` (labelled or
   not), and runs `backup.mjs` only if that is more than `HPA_BACKUP_MAX_AGE_DAYS` (7) old.

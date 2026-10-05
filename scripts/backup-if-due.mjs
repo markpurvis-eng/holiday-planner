@@ -17,7 +17,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { backupDir } from './lib/storage.mjs'
+import { backupDir, logDir } from './lib/storage.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..')
@@ -35,7 +35,8 @@ const waitMinutes = num(process.env.HPA_BACKUP_WAIT_MINUTES, 10)
 
 const base = backupDir()
 fs.mkdirSync(path.join(base, 'db'), { recursive: true })
-const logFile = path.join(base, 'backup.log')
+fs.mkdirSync(logDir(), { recursive: true })
+const logFile = path.join(logDir(), 'backup.log')
 const log = (message) => {
   console.log(message)
   fs.appendFileSync(logFile, `${new Date().toISOString()} ${message}\n`)

@@ -15,10 +15,12 @@
 //                                  storage-definitions.sql buckets and storage policies
 //                                  manifest.json           counts, versions, orphan report
 //   storage\<bucket>\...           incremental mirror of every file in Storage (never deletes)
-//   backup.log                     one line per step, for scheduled runs
+//
+// backup.log (one line per step, for scheduled runs) goes to HPA_LOG_DIR, default
+// ...\OneDrive\Sync\Programs\Logs\Holiday-Planner-App, not into the backup folder.
 //
 // Reads from .env (gitignored): HPA_DB_URL, VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY,
-// GEOCODE_EMAIL, GEOCODE_PASSWORD; optional HPA_BACKUP_DIR, HPA_BACKUP_KEEP, HPA_PG_BIN.
+// GEOCODE_EMAIL, GEOCODE_PASSWORD; optional HPA_BACKUP_DIR, HPA_LOG_DIR, HPA_BACKUP_KEEP, HPA_PG_BIN.
 // pg_dump and psql must be on PATH (or HPA_PG_BIN set); pg_dump must be the same
 // major version as the Supabase server or newer.
 
@@ -34,7 +36,7 @@ import {
   renderStorageDefinitions,
   snapshotHeader,
 } from './lib/schema-render.mjs'
-import { BUCKETS, backupDir, extractStoragePath, listAll, localPathFor, signIn } from './lib/storage.mjs'
+import { BUCKETS, backupDir, extractStoragePath, logDir, listAll, localPathFor, signIn } from './lib/storage.mjs'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 try {
@@ -72,7 +74,8 @@ const keep = Number(process.env.HPA_BACKUP_KEEP) > 0 ? Number(process.env.HPA_BA
 
 const base = backupDir()
 fs.mkdirSync(path.join(base, 'db'), { recursive: true })
-const logFile = path.join(base, 'backup.log')
+fs.mkdirSync(logDir(), { recursive: true })
+const logFile = path.join(logDir(), 'backup.log')
 const redact = (text) =>
   [dbUrl, process.env.GEOCODE_PASSWORD].filter(Boolean).reduce((t, secret) => t.split(secret).join('<hidden>'), String(text))
 const log = (message) => {

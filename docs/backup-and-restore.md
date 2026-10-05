@@ -18,7 +18,10 @@ laptop). Change it with `HPA_BACKUP_DIR` in `.env`.
 | `db\...\storage-definitions.sql` | the `documents` and `itineraries` buckets and their policies |
 | `db\...\manifest.json` | row counts (dump vs what the app sees), schema_version, orphan report, warnings |
 | `storage\documents\...`, `storage\itineraries\...` | mirror of every Storage file; downloads new and changed files only; never deletes |
-| `backup.log` | one line per step, including scheduled runs |
+
+The log, `backup.log` (one line per step, including scheduled runs), is not in the backup
+folder. It goes to `C:\Users\markp\OneDrive\Sync\Programs\Logs\Holiday-Planner-App\`,
+alongside the other apps' logs. Change it with `HPA_LOG_DIR` in `.env`.
 
 Not covered: the Supabase Auth user (recreate it, see the restore steps), project
 settings, and the Netlify environment variables.
@@ -30,7 +33,7 @@ settings, and the Netlify environment variables.
      (Supabase, Connect, session pooler). Put it in quotes if the password contains `#`.
    - `GEOCODE_EMAIL` and `GEOCODE_PASSWORD`: the household login (already there for
      `geocode-pins.mjs`). The backup signs in with it to list and download Storage files.
-   - Optional: `HPA_BACKUP_DIR`, `HPA_BACKUP_KEEP` (default 8), `HPA_PG_BIN`.
+   - Optional: `HPA_BACKUP_DIR`, `HPA_LOG_DIR`, `HPA_BACKUP_KEEP` (default 8), `HPA_PG_BIN`.
 2. Tools: Node 20.12 or newer, and the PostgreSQL command line tools (`pg_dump` and
    `psql`). `pg_dump` must be the same major version as the Supabase server or newer
    (Supabase currently runs Postgres 17). If they are not on PATH, set `HPA_PG_BIN` to
@@ -84,7 +87,7 @@ Set it up on one machine only, the one that is on most often.
    laptop. Settings: tick "Run task as soon as possible after a scheduled start is
    missed"; "If the task is already running, then the following rule applies": Do not
    start a new instance.
-6. OK. Right-click the task, Run, and check `backup.log` in the backup folder: it should
+6. OK. Right-click the task, Run, and check `backup.log` in the Logs folder: it should
    say either "not due" or start a backup.
 
 A console window may flash up while it runs. If the PC shuts down at 23:30 part-way
