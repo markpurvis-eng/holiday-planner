@@ -747,7 +747,7 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
 
 ## Ready to build / open items
 
-- **In-app PDF viewer (v1.37.0, fixed in v1.37.1, button changed in v1.37.2; roadmap bug #1)**: Chrome on Android crashed ("Chrome
+- **In-app PDF viewer (v1.37.0, fixed in v1.37.1, button changed in v1.37.2, PDF links in v1.37.3; roadmap bug #1)**: Chrome on Android crashed ("Chrome
   keeps stopping") while scrolling PDFs opened via `<a target="_blank">`, because that
   hands the file to Chrome's own PDF viewer. PDF document links in `AttachedItems.tsx`
   and `DocumentGroup.tsx` now call `pdfLinkClick()` (`src/lib/pdfViewer.ts`), which
@@ -756,7 +756,7 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   full-screen overlay that draws pages with `pdfjs-dist` (the `legacy/` build, which works on older Chrome; the main build needs very new JS features) onto canvases. Only pages near
   the viewport are rendered (IntersectionObserver); off-screen canvases are zeroed to
   free memory, device pixel ratio is capped at 2 and canvas size at 4M pixels. Android
-  Back closes the viewer: the host pushes one history entry on open and closes on `popstate`; the Close button calls `history.back()`. History is deliberately NOT tied to an effect cleanup, because StrictMode's dev double-run made the viewer close itself (v1.37.0 bug). "Download" (v1.37.2; Supabase's `?download=<name>` makes it a file download) is the escape hatch if rendering fails, replacing "Open in browser", which sent the PDF back to Chrome's own viewer, the thing that crashes. Photos and non-PDF files still open as plain links. The
+  Back closes the viewer: the host pushes one history entry on open and closes on `popstate`; the Close button calls `history.back()`. History is deliberately NOT tied to an effect cleanup, because StrictMode's dev double-run made the viewer close itself (v1.37.0 bug). Links inside a PDF (Google Maps links in visitor guides, v1.37.3) work: each page gets an invisible `<a>` over every Link annotation (`page.getAnnotations()` mapped with `convertToViewportPoint`); URL links open in a new tab, internal links (`dest`) scroll to the target page. "Download" (v1.37.2; Supabase's `?download=<name>` makes it a file download) is the escape hatch if rendering fails, replacing "Open in browser", which sent the PDF back to Chrome's own viewer, the thing that crashes. Photos and non-PDF files still open as plain links. The
   pdf.js worker is not precached by the service worker, so the viewer needs a network
   connection (relevant to roadmap #15, offline documents).
 

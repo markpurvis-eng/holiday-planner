@@ -4,6 +4,15 @@ import { OPEN_PDF_EVENT, downloadUrl, type OpenPdfDetail } from '../lib/pdfViewe
 
 const MAX_CANVAS_PIXELS = 4_000_000
 
+interface PageLink {
+  left: number
+  top: number
+  width: number
+  height: number
+  url?: string
+  dest?: unknown
+}
+
 async function loadDocument(url: string) {
   const [pdfjs, worker] = await Promise.all([
     import('pdfjs-dist/legacy/build/pdf.mjs'),
@@ -18,16 +27,19 @@ function PdfPage({
   pageNumber,
   width,
   ratio,
+  onGoToDest,
 }: {
   doc: PDFDocumentProxy
   pageNumber: number
   width: number
   ratio: number
+  onGoToDest: (dest: unknown) => void
 }) {
   const holder = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const [visible, setVisible] = useState(false)
   const [pageRatio, setPageRatio] = useState(ratio)
+  const [links, setLinks] = useState<PageLink[]>([])
 
   useEffect(() => {
     const el = holder.current
@@ -63,6 +75,27 @@ function PdfPage({
       target.height = Math.floor(viewport.height)
       task = page.render({ canvas: target, viewport })
       task.promise.catch(() => {})
+      const cssViewport = page.getViewport({ scale: fit })
+      page.getAnnotations({ intent: 'display' }).then((annotations) => {
+        if (cancelled) return
+        const found: PageLink[] = []
+        for (const a of annotations) {
+          if (a.subtype !== 'Link' || !a.rect) continue
+          const url: string | undefined = a.url || a.unsafeUrl
+          if (!url && !a.dest) continue
+          const [x1, y1] = cssViewport.convertToViewportPoint(a.rect[0], a.rect[1])
+          const [x2, y2] = cssViewport.convertToViewportPoint(a.rect[2], a.rect[3])
+          found.push({
+            left: Math.min(x1, x2),
+            top: Math.min(y1, y2),
+            width: Math.abs(x2 - x1),
+            height: Math.abs(y2 - y1),
+            url,
+            dest: a.dest,
+          })
+        }
+        setLinks(found)
+      })
     })
     return () => {
       cancelled = true
@@ -73,10 +106,35 @@ function PdfPage({
   return (
     <div
       ref={holder}
-      className="mx-auto mb-2 bg-white shadow"
+      data-page={pageNumber}
+      className="relative mx-auto mb-2 bg-white shadow"
       style={{ width, height: Math.round(width * pageRatio) }}
     >
       <canvas ref={canvas} className="block h-full w-full" />
+      {links.map((l, i) => {
+        const box = { left: l.left, top: l.top, width: l.width, height: l.height }
+        return l.url ? (
+          <a
+            key={i}
+            href={l.url}
+            target="_blank"
+            rel="noreferrer"
+            className="absolute"
+            style={box}
+          />
+        ) : (
+          <a
+            key={i}
+            href="#"
+            onClick={(e) => {
+              e.preventDefault()
+              onGoToDest(l.dest)
+            }}
+            className="absolute"
+            style={box}
+          />
+        )
+      })}
     </div>
   )
 }
@@ -113,6 +171,23 @@ function PdfViewer({ url, title, onClose }: { url: string; title: string; onClos
       task?.destroy()
     }
   }, [url])
+
+  const goToDest = useCallback(
+    async (dest: unknown) => {
+      if (!doc) return
+      try {
+        const resolved = typeof dest === 'string' ? await doc.getDestination(dest) : dest
+        if (!Array.isArray(resolved)) return
+        const index = await doc.getPageIndex(resolved[0])
+        scroller.current
+          ?.querySelector(`[data-page="${index + 1}"]`)
+          ?.scrollIntoView({ block: 'start' })
+      } catch {
+        return
+      }
+    },
+    [doc],
+  )
 
   useEffect(() => {
     const el = scroller.current
@@ -154,7 +229,14 @@ function PdfViewer({ url, title, onClose }: { url: string; title: string; onClos
         {doc &&
           width > 0 &&
           Array.from({ length: doc.numPages }, (_, i) => (
-            <PdfPage key={i} doc={doc} pageNumber={i + 1} width={width} ratio={ratio} />
+            <PdfPage
+              key={i}
+              doc={doc}
+              pageNumber={i + 1}
+              width={width}
+              ratio={ratio}
+              onGoToDest={goToDest}
+            />
           ))}
       </div>
     </div>
