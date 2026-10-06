@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { AuthProvider, ProtectedRoute } from './lib/auth'
 import { BottomNav } from './components/BottomNav'
+import { PdfViewerHost } from './components/PdfViewer'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import TripDetail from './pages/TripDetail'
@@ -140,6 +141,7 @@ export default function App() {
           }
         />
       </Routes>
+      <PdfViewerHost />
     </AuthProvider>
   )
 }

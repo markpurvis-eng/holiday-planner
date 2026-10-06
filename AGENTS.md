@@ -747,6 +747,20 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
 
 ## Ready to build / open items
 
+- **In-app PDF viewer (v1.37.0, fixed in v1.37.1; roadmap bug #1)**: Chrome on Android crashed ("Chrome
+  keeps stopping") while scrolling PDFs opened via `<a target="_blank">`, because that
+  hands the file to Chrome's own PDF viewer. PDF document links in `AttachedItems.tsx`
+  and `DocumentGroup.tsx` now call `pdfLinkClick()` (`src/lib/pdfViewer.ts`), which
+  cancels the navigation for `.pdf` URLs and dispatches an `open-pdf` window event;
+  `PdfViewerHost` (mounted once in `App.tsx`, `src/components/PdfViewer.tsx`) shows a
+  full-screen overlay that draws pages with `pdfjs-dist` (the `legacy/` build, which works on older Chrome; the main build needs very new JS features) onto canvases. Only pages near
+  the viewport are rendered (IntersectionObserver); off-screen canvases are zeroed to
+  free memory, device pixel ratio is capped at 2 and canvas size at 4M pixels. Android
+  Back closes the viewer: the host pushes one history entry on open and closes on `popstate`; the Close button calls `history.back()`. History is deliberately NOT tied to an effect cleanup, because StrictMode's dev double-run made the viewer close itself (v1.37.0 bug). "Open in browser" is the escape
+  hatch if rendering fails. Photos and non-PDF files still open as plain links. The
+  pdf.js worker is not precached by the service worker, so the viewer needs a network
+  connection (relevant to roadmap #15, offline documents).
+
 - The installable icon is SVG-only (see above) — a real PNG icon set is a good
   follow-up, not required for functionality.
 
@@ -878,3 +892,13 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   `pgcrypto` in `public` while live has it in `extensions`. The generated file mirrors
   live. Any hardening would be a migration of its own, agreed with Mark first.
 
+- **Deploys are manual (5 Oct 2026).** Pushing to GitHub does not deploy: the Netlify
+  site's Build status is "Stopped builds" (a dashboard setting, not in this repo) so
+  pushes don't spend the free plan's credits, and the dashboard's Trigger deploy button
+  is unavailable. Mark deploys from his laptop with `go deploy hpa` (in his `go.ps1`,
+  outside git): it prints the version, branch and commit, warns about uncommitted
+  changes, unpushed commits or a branch other than `main`, runs `npm run build`, then
+  `netlify deploy --prod --dir=dist`. It builds the files on disk, using `.env` for the
+  VITE_ values. The live site changes only when that is run, so never assume a pushed
+  commit is live, and don't tell Mark a change is "deployed" until he has run it. The
+  laptop is linked to the site (`.netlify`, gitignored); the desktop is not yet.

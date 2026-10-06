@@ -86,6 +86,8 @@ $SrcFileMap = @{
     'geocode.ts'          = 'lib\geocode.ts'
     'useAddressPin.ts'    = 'lib\useAddressPin.ts'
     'DeleteTripDialog.tsx' = 'components\DeleteTripDialog.tsx'
+    'PdfViewer.tsx'       = 'components\PdfViewer.tsx'
+    'pdfViewer.ts'        = 'lib\pdfViewer.ts'
     'deploy-claude-files.ps1' = 'deploy-claude-files.ps1'
 }
 

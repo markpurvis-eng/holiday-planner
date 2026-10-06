@@ -5,6 +5,9 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  optimizeDeps: {
+    include: ['pdfjs-dist/legacy/build/pdf.mjs'],
+  },
   plugins: [
     react(),
     tailwindcss(),

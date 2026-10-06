@@ -1,5 +1,6 @@
 import type { Document, Link as LinkType } from '../lib/types'
 import { LongPressMenu } from './LongPressMenu'
+import { pdfLinkClick } from '../lib/pdfViewer'
 
 // Missing Features #6: long-press a row to delete it, wherever this
 // component renders (Documents/Links tabs' booking/itinerary groups, every
@@ -32,6 +33,7 @@ export function AttachedItems({
             href={doc.file_url}
             target="_blank"
             rel="noreferrer"
+            onClick={(e) => pdfLinkClick(e, doc.file_url, doc.title ?? 'Document')}
             className="flex items-center gap-2 text-sm text-stone-600 hover:text-teal-700"
           >
             <span>{doc.type === 'photo' ? '📷' : '📄'}</span>

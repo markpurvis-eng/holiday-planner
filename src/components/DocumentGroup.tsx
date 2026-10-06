@@ -1,5 +1,6 @@
 import type { Document, DocumentType } from '../lib/types'
 import { LongPressMenu } from './LongPressMenu'
+import { pdfLinkClick } from '../lib/pdfViewer'
 
 const LABELS: Record<DocumentType, string> = {
   confirmation: 'Confirmations',
@@ -42,6 +43,7 @@ export function DocumentGroup({
               href={doc.file_url}
               target="_blank"
               rel="noreferrer"
+              onClick={(e) => pdfLinkClick(e, doc.file_url, doc.title ?? 'Document')}
               className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl bg-white p-2 text-center ring-1 ring-stone-100 hover:shadow-md"
             >
               {type === 'photo' ? (
