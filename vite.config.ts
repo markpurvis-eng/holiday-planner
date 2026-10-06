@@ -50,7 +50,24 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        // mjs: the pdf.js worker is an .mjs file, so without it the PDF viewer
+        // needs a connection even when the page itself loads offline.
+        globPatterns: ['**/*.{js,mjs,css,html,svg,png,ico}'],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+        runtimeCaching: [
+          {
+            // Trip documents and photos. The app downloads the current trip's
+            // files into this cache (src/lib/offlineFiles.ts); this rule only
+            // serves them, and statuses: [] stops it caching anything else.
+            urlPattern: ({ url }: { url: URL }) =>
+              url.pathname.includes('/storage/v1/object/public/documents/') && !url.searchParams.has('download'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'trip-files-v1',
+              cacheableResponse: { statuses: [] },
+            },
+          },
+        ],
       },
     }),
   ],

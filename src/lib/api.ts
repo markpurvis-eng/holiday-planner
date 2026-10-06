@@ -1,4 +1,6 @@
 import { supabase } from './supabaseClient'
+import { snapshotKey, withSnapshot } from './offlineSnapshots'
+import { reconcileFiles } from './offlineFiles'
 import type {
   Booking,
   Document,
@@ -32,7 +34,7 @@ export async function createTripType(name: string, icon: string): Promise<TripTy
 
 // --- Trips ---
 
-export async function getTrips(): Promise<Trip[]> {
+export async function fetchTrips(): Promise<Trip[]> {
   const { data, error } = await supabase
     .from('trip')
     .select('*, trip_type:trip_type_id(*)')
@@ -41,7 +43,9 @@ export async function getTrips(): Promise<Trip[]> {
   return data ?? []
 }
 
-export async function getTrip(id: string): Promise<Trip | null> {
+export const getTrips = () => withSnapshot('getTrips', null, fetchTrips)
+
+export async function fetchTrip(id: string): Promise<Trip | null> {
   const { data, error } = await supabase
     .from('trip')
     .select('*, trip_type:trip_type_id(*)')
@@ -50,6 +54,8 @@ export async function getTrip(id: string): Promise<Trip | null> {
   if (error) throw error
   return data
 }
+
+export const getTrip = (id: string) => withSnapshot(snapshotKey('getTrip', id), id, () => fetchTrip(id))
 
 export async function createTrip(trip: Partial<Trip>): Promise<Trip> {
   const { data, error } = await supabase.from('trip').insert(trip).select().single()
@@ -142,7 +148,7 @@ export function getItineraryPdfUrl(tripId: string): string {
 
 // --- Bookings ---
 
-export async function getBookings(tripId: string): Promise<Booking[]> {
+export async function fetchBookings(tripId: string): Promise<Booking[]> {
   const { data, error } = await supabase
     .from('booking')
     .select('*')
@@ -151,6 +157,9 @@ export async function getBookings(tripId: string): Promise<Booking[]> {
   if (error) throw error
   return data ?? []
 }
+
+export const getBookings = (tripId: string) =>
+  withSnapshot(snapshotKey('getBookings', tripId), tripId, () => fetchBookings(tripId))
 
 export async function getBooking(id: string): Promise<Booking | null> {
   const { data, error } = await supabase.from('booking').select('*').eq('id', id).single()
@@ -190,7 +199,7 @@ export async function createPayment(payment: Partial<Payment>): Promise<Payment>
 
 // --- Itinerary ---
 
-export async function getItinerary(tripId: string): Promise<ItineraryItem[]> {
+export async function fetchItinerary(tripId: string): Promise<ItineraryItem[]> {
   const { data, error } = await supabase
     .from('itinerary_item')
     .select('*')
@@ -200,6 +209,9 @@ export async function getItinerary(tripId: string): Promise<ItineraryItem[]> {
   if (error) throw error
   return data ?? []
 }
+
+export const getItinerary = (tripId: string) =>
+  withSnapshot(snapshotKey('getItinerary', tripId), tripId, () => fetchItinerary(tripId))
 
 export async function getItineraryItem(id: string): Promise<ItineraryItem | null> {
   const { data, error } = await supabase.from('itinerary_item').select('*').eq('id', id).single()
@@ -221,7 +233,7 @@ export async function updateItineraryItem(id: string, updates: Partial<Itinerary
 
 // --- Documents ---
 
-export async function getDocuments(tripId: string): Promise<Document[]> {
+export async function fetchDocuments(tripId: string): Promise<Document[]> {
   const { data, error } = await supabase
     .from('document')
     .select('*')
@@ -230,6 +242,9 @@ export async function getDocuments(tripId: string): Promise<Document[]> {
   if (error) throw error
   return data ?? []
 }
+
+export const getDocuments = (tripId: string) =>
+  withSnapshot(snapshotKey('getDocuments', tripId), tripId, () => fetchDocuments(tripId), () => void reconcileFiles())
 
 export async function uploadDocumentFile(file: File): Promise<string> {
   const ext = file.name.split('.').pop()
@@ -316,7 +331,7 @@ export async function deleteDocument(doc: Document): Promise<void> {
 
 // --- Links ---
 
-export async function getLinks(tripId: string): Promise<Link[]> {
+export async function fetchLinks(tripId: string): Promise<Link[]> {
   const { data, error } = await supabase
     .from('link')
     .select('*')
@@ -325,6 +340,9 @@ export async function getLinks(tripId: string): Promise<Link[]> {
   if (error) throw error
   return data ?? []
 }
+
+export const getLinks = (tripId: string) =>
+  withSnapshot(snapshotKey('getLinks', tripId), tripId, () => fetchLinks(tripId))
 
 export async function createLink(link: {
   url: string
@@ -364,7 +382,7 @@ export async function updateLink(
 // state and no payment_status column - it's simply always paid, with its
 // FX rate locked at entry time rather than on a later transition.
 
-export async function getExpenses(tripId: string): Promise<Expense[]> {
+export async function fetchExpenses(tripId: string): Promise<Expense[]> {
   const { data, error } = await supabase
     .from('expense')
     .select('*')
@@ -373,6 +391,9 @@ export async function getExpenses(tripId: string): Promise<Expense[]> {
   if (error) throw error
   return data ?? []
 }
+
+export const getExpenses = (tripId: string) =>
+  withSnapshot(snapshotKey('getExpenses', tripId), tripId, () => fetchExpenses(tripId))
 
 // Single-record fetch for Edit Expense, same pattern as getBooking/
 // getItineraryItem.
@@ -411,7 +432,7 @@ export async function deleteExpense(id: string): Promise<void> {
 
 // --- Todos ---
 
-export async function getTodos(tripId: string): Promise<Todo[]> {
+export async function fetchTodos(tripId: string): Promise<Todo[]> {
   const { data, error } = await supabase
     .from('todo')
     .select('*')
@@ -420,6 +441,9 @@ export async function getTodos(tripId: string): Promise<Todo[]> {
   if (error) throw error
   return data ?? []
 }
+
+export const getTodos = (tripId: string) =>
+  withSnapshot(snapshotKey('getTodos', tripId), tripId, () => fetchTodos(tripId))
 
 export async function createTodo(
   tripId: string,
@@ -455,4 +479,18 @@ export async function toggleTodo(id: string, done: boolean): Promise<Todo> {
     .single()
   if (error) throw error
   return data
+}
+
+// Everything the offline cache keeps for one trip, fetched straight from the
+// network (never from a saved copy), for syncOfflineCache().
+export async function fetchTripBundle(tripId: string) {
+  const [bookings, itinerary, documents, links, todos, expenses] = await Promise.all([
+    fetchBookings(tripId),
+    fetchItinerary(tripId),
+    fetchDocuments(tripId),
+    fetchLinks(tripId),
+    fetchTodos(tripId),
+    fetchExpenses(tripId),
+  ])
+  return { bookings, itinerary, documents, links, todos, expenses }
 }

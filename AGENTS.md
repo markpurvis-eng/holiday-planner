@@ -736,7 +736,7 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   header or nav. Zoom buttons are bottom-right for the same reason. Markers
   are `L.divIcon`s, not Leaflet's default image icons, which break under Vite's
   asset handling. Respects the "hide cancelled" setting, not the payment filter.
-  Tiles need a connection, so the map is blank offline (Missing Features #15).
+  Tiles need a connection, so the map shows the pins on a blank grey background offline (OpenStreetMap's tile policy discourages bulk prefetching, so tiles are deliberately not cached; see "Offline cache" below).
   `TripCard.tsx`: swipe left (>= 60px, mostly horizontal) opens
   `/trips/:id?tab=map`. It uses Pointer Events (touch, pen and mouse drag),
   `touch-action: pan-y` so vertical scrolling still works, ignores gestures that
@@ -756,9 +756,58 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   full-screen overlay that draws pages with `pdfjs-dist` (the `legacy/` build, which works on older Chrome; the main build needs very new JS features) onto canvases. Only pages near
   the viewport are rendered (IntersectionObserver); off-screen canvases are zeroed to
   free memory, device pixel ratio is capped at 2 and canvas size at 4M pixels. Android
-  Back closes the viewer: the host pushes one history entry on open and closes on `popstate`; the Close button calls `history.back()`. History is deliberately NOT tied to an effect cleanup, because StrictMode's dev double-run made the viewer close itself (v1.37.0 bug). Links inside a PDF (Google Maps links in visitor guides, v1.37.3) work: each page gets an invisible `<a>` over every Link annotation (`page.getAnnotations()` mapped with `convertToViewportPoint`); URL links open in a new tab, internal links (`dest`) scroll to the target page. "Download" (v1.37.2; Supabase's `?download=<name>` makes it a file download) is the escape hatch if rendering fails, replacing "Open in browser", which sent the PDF back to Chrome's own viewer, the thing that crashes. Photos and non-PDF files still open as plain links. The
-  pdf.js worker is not precached by the service worker, so the viewer needs a network
-  connection (relevant to roadmap #15, offline documents).
+  Back closes the viewer: the host pushes one history entry on open and closes on `popstate`; the Close button calls `history.back()`. History is deliberately NOT tied to an effect cleanup, because StrictMode's dev double-run made the viewer close itself (v1.37.0 bug). Links inside a PDF (Google Maps links in visitor guides, v1.37.3) work: each page gets an invisible `<a>` over every Link annotation (`page.getAnnotations()` mapped with `convertToViewportPoint`); URL links open in a new tab, internal links (`dest`) scroll to the target page. "Download" (v1.37.2; Supabase's `?download=<name>` makes it a file download) is the escape hatch if rendering fails, replacing "Open in browser", which sent the PDF back to Chrome's own viewer, the thing that crashes. Photos and non-PDF files still open as plain links. (Until v1.38.0 the
+  pdf.js worker, an `.mjs` file, was missing from the service worker precache; it is
+  now included, and the viewer opens cached PDFs from the offline cache, see "Offline
+  cache" below.)
+
+- **Offline cache (v1.38.0; roadmap Missing Features #15)**: the app decides by itself
+  what to keep for use with no signal; there is no per-trip "make available offline"
+  switch. **The rule** (`tripsToCache()` in `src/lib/offlineCache.ts`, dates only, never
+  the stored `status` column): the trip under way, from the day before `start_date`
+  to the day after `end_date`, excluding `cancelled`. Two back-to-back trips are both
+  kept. Everything else is purged. Change `DAYS_BEFORE` / `DAYS_AFTER` there to move
+  the window.
+  **What is kept**: for each kept trip, the results of `getTrip`, `getBookings`,
+  `getItinerary`, `getDocuments`, `getLinks`, `getTodos` and `getExpenses`, saved as
+  snapshots in IndexedDB (`src/lib/offlineStore.ts`, database `hp-offline`), plus the
+  trip list (`getTrips`, all trips, tiny) and a `meta` record naming the kept trip
+  ids. The files behind the trip's documents and photos are stored in Cache Storage
+  (`trip-files-v1`, `src/lib/offlineFiles.ts`), skipping any file over 15 MB and all
+  downloads when the browser reports Data Saver. App code, including the lazy chunks
+  (pdf.js, its worker, Leaflet), comes from the normal precache (`vite.config.ts`
+  now globs `.mjs`; max precache file size raised to 3 MiB).
+  **How reads work**: the `get*` functions in `api.ts` are wrapped by `withSnapshot()`
+  (`src/lib/offlineSnapshots.ts`); the unwrapped network versions are `fetch*`, and
+  `fetchTripBundle()` is what the sync uses. Network first. On a network error, or if
+  the request takes over 8 seconds, a saved copy is returned if there is one, and
+  `OfflineBanner` (mounted in `App.tsx`) shows "Offline / Slow connection · showing
+  saved copy from HH:MM". A real error (e.g. permission denied) is never replaced by
+  a saved copy. Every successful read of a kept trip refreshes its snapshot, so
+  in-app edits are in the copy before the signal drops; a `getDocuments` refresh also
+  re-runs the file reconcile so new uploads are downloaded.
+  **How it syncs**: `OfflineSync` (mounted in `App.tsx`, only while signed in) calls
+  `syncOfflineCache()` on app open, when the app returns to the foreground and when
+  the browser comes back online. It does nothing offline, and at most once per
+  3 hours on the same day (a new day always syncs, so the window rolls forward). It
+  saves the new copy first and only then purges old snapshots and files, so a
+  sync cut off by a dropped signal leaves the previous copy intact. `syncOfflineCache(true)`
+  forces it.
+  **Service worker**: the runtime-caching rule in `vite.config.ts` serves
+  `/storage/v1/object/public/documents/` files cache-first from `trip-files-v1` (so
+  photos in `<img>` work offline). It has `cacheableResponse: { statuses: [] }`, which
+  means it never adds anything itself: only the app's sync writes to that cache, so
+  files from other trips are never kept by accident. The PDF viewer reads a cached PDF
+  as a whole buffer (`getCachedFile()`) and passes it to pdf.js as `data`, avoiding
+  range requests that Cache Storage can't answer.
+  **Offline login**: `auth.tsx`. With no signal supabase-js can't refresh an expired
+  token and reports no session, which would send the app to the login screen. In that
+  case (offline, or a retryable fetch error) the session stored in localStorage is
+  used for the UI, and `INITIAL_SESSION` with no session is ignored so it can't
+  overwrite that. Real refresh resumes by itself when a signal returns.
+  **Not offline in v1**: the map's street tiles; edits, uploads and anything that writes
+  (they fail with the page's existing error, nothing is queued); trips outside the
+  window; the shared-itinerary PDF; the weather forecast and FX rate.
 
 - The installable icon is SVG-only (see above) — a real PNG icon set is a good
   follow-up, not required for functionality.

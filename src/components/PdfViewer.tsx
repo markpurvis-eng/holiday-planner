@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { OPEN_PDF_EVENT, downloadUrl, type OpenPdfDetail } from '../lib/pdfViewer'
+import { getCachedFile } from '../lib/offlineFiles'
 
 const MAX_CANVAS_PIXELS = 4_000_000
 
@@ -14,12 +15,13 @@ interface PageLink {
 }
 
 async function loadDocument(url: string) {
-  const [pdfjs, worker] = await Promise.all([
+  const [pdfjs, worker, cached] = await Promise.all([
     import('pdfjs-dist/legacy/build/pdf.mjs'),
     import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
+    getCachedFile(url),
   ])
   pdfjs.GlobalWorkerOptions.workerSrc = worker.default
-  return pdfjs.getDocument({ url })
+  return pdfjs.getDocument(cached ? { data: new Uint8Array(cached) } : { url })
 }
 
 function PdfPage({
