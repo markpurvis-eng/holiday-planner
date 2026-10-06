@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
-import { OPEN_PDF_EVENT, type OpenPdfDetail } from '../lib/pdfViewer'
+import { OPEN_PDF_EVENT, downloadUrl, type OpenPdfDetail } from '../lib/pdfViewer'
 
 const MAX_CANVAS_PIXELS = 4_000_000
 
@@ -129,12 +129,11 @@ function PdfViewer({ url, title, onClose }: { url: string; title: string; onClos
       <div className="flex items-center gap-2 bg-teal-700 px-3 py-2 text-white">
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{title}</span>
         <a
-          href={url}
-          target="_blank"
+          href={downloadUrl(url, title)}
           rel="noreferrer"
           className="rounded-lg px-2 py-1 text-xs text-teal-50 ring-1 ring-teal-300/50"
         >
-          Open in browser
+          Download
         </a>
         <button
           type="button"
@@ -148,7 +147,7 @@ function PdfViewer({ url, title, onClose }: { url: string; title: string; onClos
       <div ref={scroller} className="flex-1 overflow-y-auto overflow-x-hidden py-2">
         {error && (
           <p className="p-6 text-center text-sm text-stone-600">
-            Couldn't load this PDF. Try "Open in browser".
+            Couldn't load this PDF. Try "Download".
           </p>
         )}
         {!doc && !error && <p className="p-6 text-center text-sm text-stone-500">Loading…</p>}

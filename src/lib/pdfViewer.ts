@@ -19,3 +19,8 @@ export function pdfLinkClick(e: { preventDefault: () => void }, url: string, tit
   e.preventDefault()
   openPdf(url, title)
 }
+
+export function downloadUrl(url: string, title: string): string {
+  const name = /\.pdf$/i.test(title) ? title : `${title}.pdf`
+  return `${url}${url.includes('?') ? '&' : '?'}download=${encodeURIComponent(name)}`
+}
