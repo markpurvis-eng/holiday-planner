@@ -148,7 +148,7 @@ export function CostsTab({
         )
         const rateEntries = await Promise.all(
           Array.from(outstandingCurrencies).map(
-            async (currency) => [currency, await fetchGbpRate(currency)] as const
+            async (currency) => [currency, await fetchGbpRate(currency, { allowStale: true })] as const
           )
         )
         if (cancelled) return

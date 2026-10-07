@@ -112,16 +112,22 @@ export async function ensureLockedRates(lines: CostLine[]): Promise<CostLine[]> 
   const toLock = lines.filter((l) => l.paymentStatus === 'paid' && l.fxRateToGbp == null)
   if (toLock.length === 0) return lines
 
+  // A line that can't be locked now (no signal) is left unlocked and gets
+  // locked on a later visit, instead of failing the whole tab.
   const results = await Promise.all(
     toLock.map(async (line) => {
-      const rate = await fetchGbpRate(line.currency)
-      const lockedAt = new Date().toISOString()
-      await writeLockedRate(line, rate, lockedAt)
-      return { key: line.key, rate, lockedAt }
+      try {
+        const rate = await fetchGbpRate(line.currency)
+        const lockedAt = new Date().toISOString()
+        await writeLockedRate(line, rate, lockedAt)
+        return { key: line.key, rate, lockedAt }
+      } catch {
+        return null
+      }
     })
   )
 
-  const byKey = new Map(results.map((r) => [r.key, r]))
+  const byKey = new Map(results.flatMap((r) => (r ? [[r.key, r] as const] : [])))
   return lines.map((line) => {
     const locked = byKey.get(line.key)
     return locked ? { ...line, fxRateToGbp: locked.rate, fxRateLockedAt: locked.lockedAt } : line

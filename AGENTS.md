@@ -805,9 +805,22 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   case (offline, or a retryable fetch error) the session stored in localStorage is
   used for the UI, and `INITIAL_SESSION` with no session is ignored so it can't
   overwrite that. Real refresh resumes by itself when a signal returns.
+  **Costs tab offline (v1.38.1)**: the cost lines come from the cached bookings,
+  itinerary and expenses, but the tab also looks up a live GBP rate for every
+  non-GBP *unpaid* line (`fetchGbpRate()` in `src/lib/fx.ts`), which used to fail with
+  no signal and put the whole tab into its error state (Thailand & Vietnam has USD
+  and VND unpaid lines). Now every successful rate is saved in IndexedDB
+  (`fx-rate-<CODE>`, no colon in the key so `purgeSnapshots()` leaves it alone), the
+  sync prefetches the rates for the currencies in the kept trips, and the Costs
+  tab's display lookup passes `{ allowStale: true }` to fall back to the last saved
+  rate. `allowStale` is for display only; never pass it where a rate gets locked
+  (`ensureLockedRates()`, `AddExpense.tsx`), or an old rate would be locked in
+  permanently. `ensureLockedRates()` now skips a line it can't lock (no signal)
+  instead of failing the whole tab; the line is locked on a later online visit.
   **Not offline in v1**: the map's street tiles; edits, uploads and anything that writes
   (they fail with the page's existing error, nothing is queued); trips outside the
-  window; the shared-itinerary PDF; the weather forecast and FX rate.
+  window; the shared-itinerary PDF; the weather forecast; and a *fresh* FX rate (the Costs tab
+  shows the last saved one).
 
 - The installable icon is SVG-only (see above) — a real PNG icon set is a good
   follow-up, not required for functionality.

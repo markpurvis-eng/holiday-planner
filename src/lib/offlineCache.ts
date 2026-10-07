@@ -3,6 +3,7 @@ import { parseLocalDate, todayDateString } from './format'
 import type { Trip } from './types'
 import { purgeSnapshots, snapshotKey, writeMeta, writeSnapshot } from './offlineSnapshots'
 import { reconcileFiles } from './offlineFiles'
+import { fetchGbpRate } from './fx'
 
 // The offline rule: keep the trip that is under way, from the day before it
 // starts (so the boarding pass is saved before the airport) to the day after it
@@ -70,6 +71,13 @@ async function doSync(force: boolean): Promise<void> {
       writeSnapshot(snapshotKey('getExpenses', trip.id), b.expenses, now),
     ])
   }
+  const currencies = new Set<string>()
+  for (const b of bundles) {
+    for (const row of [...b.bookings, ...b.itinerary, ...b.expenses]) {
+      if (row.currency) currencies.add(row.currency.toUpperCase())
+    }
+  }
+  await Promise.all([...currencies].map((c) => fetchGbpRate(c).catch(() => undefined)))
   const ids = targets.map((t) => t.id)
   await writeMeta({ tripIds: ids, syncedAt: now })
   await purgeSnapshots(ids)

@@ -1,7 +1,12 @@
 // Frankfurter (https://frankfurter.dev) — free, no API key, no meaningful
 // rate limit at this app's volume. v2/rate/{base}/{quote} returns the
 // latest rate for a single currency pair as { rate: number, ... }.
+import { idbGet, idbSet } from './offlineStore'
+
 const FX_API_BASE = 'https://api.frankfurter.dev/v2/rate'
+
+// No colon in this key: purgeSnapshots() treats a colon as "<fn>:<tripId>".
+const savedKey = (code: string) => `fx-rate-${code}`
 
 // Caches in-flight/completed requests per currency for the lifetime of the
 // page, so rendering many cost lines in the same currency (e.g. several
@@ -10,7 +15,7 @@ const rateCache = new Map<string, Promise<number>>()
 
 // Fetches the current rate to convert 1 unit of `currency` into GBP.
 // GBP itself is always 1 — no need to call the API for that case.
-export function fetchGbpRate(currency: string): Promise<number> {
+function fetchLiveRate(currency: string): Promise<number> {
   const code = currency.toUpperCase()
   if (code === 'GBP') return Promise.resolve(1)
 
@@ -22,7 +27,10 @@ export function fetchGbpRate(currency: string): Promise<number> {
       if (!res.ok) throw new Error(`FX rate fetch failed for ${code} -> GBP (${res.status})`)
       return res.json() as Promise<{ rate: number }>
     })
-    .then((data) => data.rate)
+    .then((data) => {
+      void idbSet(savedKey(code), { rate: data.rate, savedAt: Date.now() })
+      return data.rate
+    })
     .catch((err) => {
       // Don't cache a failure — a transient network error shouldn't
       // permanently poison this currency for the rest of the session.
@@ -32,4 +40,20 @@ export function fetchGbpRate(currency: string): Promise<number> {
 
   rateCache.set(code, promise)
   return promise
+}
+
+
+// allowStale: if the live lookup fails, use the last rate this device saw. Only
+// for showing an approximate GBP value (the Costs tab, offline). Never pass it
+// where the rate gets locked onto a booking or expense.
+export async function fetchGbpRate(currency: string, opts: { allowStale?: boolean } = {}): Promise<number> {
+  try {
+    return await fetchLiveRate(currency)
+  } catch (err) {
+    if (opts.allowStale) {
+      const saved = await idbGet<{ rate: number }>(savedKey(currency.toUpperCase()))
+      if (saved) return saved.rate
+    }
+    throw err
+  }
 }
