@@ -982,7 +982,7 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   3. Tell Mark the file is linked to Drive for now and moves into Storage the next time the
      migration task runs on one of his PCs.
   **Don't:** set `storage_path` or `migrated_at` yourself, trash or move the Drive file (the
-  script trashes it after a verified copy), or store a Gmail permalink as a `document` (those
+  weekly Drive tidy task trashes it once migrated), or store a Gmail permalink as a `document` (those
   are `link` rows). Until a row is migrated its link opens Drive, so only Mark's Google
   account can open it (not Andi's shared login), the in-app PDF viewer isn't used and it
   isn't in the offline cache; say so if it matters for that document.
@@ -992,21 +992,28 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   `GOOGLE_SA_KEY_FILE`, kept in `C:\Users\markp\.hpa`, outside OneDrive and the repo),
   checks size and Drive's MD5, uploads to `documents/drive-<document id>.<ext>`, reads the
   bucket back to check the size, then updates the same row (`storage_path`, `migrated_at`,
-  `file_url` rewritten to the Storage URL, so the app needs no change) and finally moves the
-  Drive copy to the Drive trash. It uses the household login, like the backup, so it needs no
-  service-role key and no schema change. Any failure leaves the row pointing at Drive and
+  `file_url` rewritten to the Storage URL, so the app needs no change). It leaves the Drive
+  copy alone: the key's token is `drive.readonly`, and in My Drive only the file's owner
+  (Mark) can trash it, so the service account never could (Viewer sharing is enough). It uses
+  the household login, like the backup, so it needs no service-role key and no schema change. Any failure leaves the row pointing at Drive and
   working; the row is retried at the next check, up to `HPA_MIGRATE_MAX_ATTEMPTS` (5) per
   PC (counts in `%USERPROFILE%\.hpa\migrate-state.json`), then skipped with a warning until
   `--retry-failed`. Google-native files and files over `HPA_MIGRATE_MAX_MB` (40) are not
-  retried. Options: `--dry-run`, `--only <document id>`, `--keep-drive`, `--retry-failed`.
+  retried. Options: `--dry-run`, `--only <document id>`, `--retry-failed`.
   **Scheduling:** a Windows scheduled task on each PC Mark uses (`Holiday Planner Drive
   migration`, at log on and every 4 hours, same shape as the backup check). It does nothing
   and needs no Google key when no row is waiting. Safe on two PCs at once: the Storage path
-  is fixed per row and overwritten, the row update only applies while `migrated_at` is
-  still null, and a Drive copy the other PC already trashed counts as done. It skips itself
-  while `backup.lock` is fresh. One log per PC, `migrate-drive-<computer name>.log`, in the
+  is fixed per row and overwritten, and the row update only applies while `migrated_at` is
+  still null. It skips itself while `backup.lock` is fresh. One log per PC, `migrate-drive-<computer name>.log`, in the
   Logs folder. Tested (7 Oct 2026) against stubbed Supabase and Google: good file, Google
-  Doc, checksum mismatch, missing file, trash not permitted, a row finished by another
-  run, size mismatch in Storage, failed upload, failed row update, retry limit, locks, and
+  Doc, checksum mismatch, missing file, a row finished by another run (and that no write
+  ever reaches Drive), size mismatch in Storage, failed upload, failed row update, retry limit, locks, and
   the no-key paths. **Not yet tried against the real Drive and Storage:** see the
   roadmap doc for status.
+  **Tidying the Drive copies (a Claude scheduled task, no repo code):** "Holiday Drive tidy"
+  runs weekly (Mondays 08:15 UK) in the cloud through the Supabase and Google Drive
+  connectors. It reads (never writes) `document` rows with `migrated_at` between 1 and 45
+  days old and `drive_file_id` still set, checks each Drive file is Mark's and in
+  `gmail attachments` (or a subfolder), and trashes it (recoverable for 30 days). Mark can
+  also ask for it in any session ("tidy the migrated Drive files"): do exactly the same.
+  Never trash a Drive file whose row has no `migrated_at`, and never delete one permanently.

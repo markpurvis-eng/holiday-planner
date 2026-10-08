@@ -3,7 +3,8 @@
 Roadmap #39, v1.39.0. Claude can't write to Supabase Storage, so when Mark hands Claude an
 email attachment or a document, the file is staged in Google Drive and the `document` row
 points at it (`drive_file_id` set, `file_url` = the Drive link). A script on Mark's PCs then
-copies each staged file into the `documents` bucket and updates that same row.
+copies each staged file into the `documents` bucket and updates that same row, and a weekly
+Claude scheduled task trashes the leftover Drive copies.
 
 ## What the script does
 
@@ -15,13 +16,15 @@ copies each staged file into the `documents` bucket and updates that same row.
 3. uploads it to `documents/drive-<document id>.<ext>` (same path every time, overwritten);
 4. reads the bucket back and checks the stored size;
 5. updates the row: `storage_path`, `migrated_at`, and `file_url` rewritten to the Storage
-   URL, so the app needs no change. This only applies while `migrated_at` is still empty;
-6. moves the Drive copy to the Drive trash (recoverable for 30 days).
+   URL, so the app needs no change. This only applies while `migrated_at` is still empty.
+
+The Drive copy is left alone. The script has read-only access to Drive (the key's token
+only has the `drive.readonly` scope), and in My Drive only the file's owner can trash it,
+so the service account couldn't anyway. See "Tidying the Drive copies" below.
 
 Any problem stops that row at that step. The row keeps working, still pointing at Drive,
-and it is retried at the next check. Nothing is ever permanently deleted. When no row is
-waiting it exits straight away and doesn't need the Google key, so a PC without the key is
-harmless.
+and it is retried at the next check. Nothing is ever deleted. When no row is waiting it
+exits straight away and doesn't need the Google key, so a PC without the key is harmless.
 
 It is safe to run on two PCs at once (the fixed Storage path and the "only if
 `migrated_at` is empty" update mean the second one changes nothing), and it skips itself
@@ -41,8 +44,9 @@ cache. After migration it behaves like any uploaded document.
    overridden for this project (both the legacy `iam.disableServiceAccountKeyCreation` and
    the managed `iam.managed.disableServiceAccountKeyCreation` constraint can apply).
 4. In Drive, share the folder **gmail attachments** with the service account's email
-   address as **Editor** (Editor is what lets it trash the Drive copy). Claude must save
-   staged files in that folder or a subfolder; the service account can't see anything else.
+   address. **Viewer is enough** (the script only reads; Editor does not let it trash files
+   owned by Mark). Claude must save staged files in that folder or a subfolder; the service
+   account can't see anything else.
 
 ## Setting up each PC
 
@@ -52,10 +56,9 @@ cache. After migration it behaves like any uploaded document.
 3. Add to `.env`: `GOOGLE_SA_KEY_FILE=C:\Users\markp\.hpa\drive-key.json`
 4. Check access without changing anything:
    `node scripts\migrate-drive-documents.mjs --dry-run`
-   Each waiting row should say where it would be copied and that the Drive copy could be
-   trashed. A "cannot trash it" warning means the folder was shared as Viewer, not Editor.
+   Each waiting row should say which Drive file it found and where it would be copied.
 5. Try one row for real: `node scripts\migrate-drive-documents.mjs --only <document id>`,
-   open that document in the app, then look in the Drive trash.
+   then open that document in the app: it should open from Supabase Storage, not Drive.
 6. Schedule it (below).
 
 ## Scheduling it (Windows Task Scheduler)
@@ -77,6 +80,19 @@ runs at every check and does nothing when nothing is waiting.
    instance".
 6. Right-click the task, Run, and check the log.
 
+## Tidying the Drive copies
+
+A Claude scheduled task, **Holiday Drive tidy**, runs weekly (Mondays, 08:15 UK) in the cloud
+through Claude's Supabase and Google Drive connectors. It reads (never writes) the `document`
+table for rows with `migrated_at` more than a day old and `drive_file_id` still set, checks
+each Drive file is Mark's and sits in `gmail attachments` (or a subfolder), and moves it to
+the Drive trash, where it stays recoverable for 30 days. It looks back 45 days, so a missed
+week is caught up, and a file Mark restores from the trash within that window would be
+trashed again. It only ever touches files that have a migrated row. Nothing else in Drive.
+
+To tidy straight away, ask Claude in a session to "tidy the migrated Drive files", or trash
+them by hand: the migration log lists each Drive file it has copied (`was <Drive link>`).
+
 ## Day to day
 
 - **Log:** `...\OneDrive\Sync\Programs\Logs\Holiday-Planner-App\migrate-drive-<computer name>.log`
@@ -85,8 +101,7 @@ runs at every check and does nothing when nothing is waiting.
   then skipped with a warning in each run until you fix the cause and run with
   `--retry-failed`. Counts live in `%USERPROFILE%\.hpa\migrate-state.json`. A Google-native
   file (a Doc or Sheet) or one over `HPA_MIGRATE_MAX_MB` (40) is never retried.
-- **Options:** `--dry-run`, `--only <id>`, `--keep-drive` (don't trash the Drive copy),
-  `--retry-failed`. Exit code 0 = nothing to do or all done; 1 = a row failed or setup problem.
+- **Options:** `--dry-run`, `--only <id>`, `--retry-failed`. Exit code 0 = nothing to do or all done; 1 = a row failed or setup problem.
 
 ## When it says FAILED
 
@@ -100,5 +115,3 @@ runs at every check and does nothing when nothing is waiting.
 - *checksum / size mismatch*, *upload failed*, *could not be verified*: nothing was changed
   on Drive or in the row. A half-finished upload can leave a file in the bucket that the
   backup's orphan report lists; the retry overwrites it.
-- *migrated, but the Drive copy could not be trashed*: harmless, the row is done. Trash the
-  Drive file by hand if you want it gone.

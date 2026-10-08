@@ -1,23 +1,22 @@
 // Moves documents that Claude staged in Google Drive into Supabase Storage.
 // A `document` row with drive_file_id set and migrated_at empty still points at Drive;
 // this copies the file into the `documents` bucket, then updates that same row
-// (storage_path, migrated_at, and file_url rewritten to the Storage URL), and finally
-// moves the Drive copy to the Drive trash (recoverable for 30 days).
+// (storage_path, migrated_at, and file_url rewritten to the Storage URL). The Drive copy
+// is left alone: the script only has read access, and the service account could not trash
+// files owned by Mark anyway. A weekly Claude scheduled task ("Holiday Drive tidy") trashes
+// the Drive copy of rows migrated more than a day ago.
 //
 // Usage (paths resolve from this script's location, so any working directory is fine):
-//   node scripts/migrate-drive-documents.mjs [--dry-run] [--only <document-id>]
-//                                            [--keep-drive] [--retry-failed]
+//   node scripts/migrate-drive-documents.mjs [--dry-run] [--only <document-id>] [--retry-failed]
 //
 //   --dry-run       look at Drive and report what would happen; changes nothing anywhere
 //   --only <id>     handle just that document row (use for the first real test)
-//   --keep-drive    do not trash the Drive copy after a successful migration
 //   --retry-failed  also retry rows that have already failed HPA_MIGRATE_MAX_ATTEMPTS times
 //
 // Meant for Windows Task Scheduler on any machine (see docs/drive-migration.md): it does
 // nothing, and needs no Google key, when no row is waiting. Safe to run on two machines:
 // the Storage path is fixed per row (documents/drive-<document id>.<ext>, overwritten),
-// the row update only applies while migrated_at is still empty, and a Drive copy that the
-// other machine has already trashed counts as done.
+// and the row update only applies while migrated_at is still empty.
 //
 // Reads from .env (gitignored): VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, GEOCODE_EMAIL,
 // GEOCODE_PASSWORD (the household login), GOOGLE_SA_KEY_FILE (service account key, kept
@@ -52,7 +51,7 @@ for (let i = 0; i < args.length; i++) {
     onlyId = args[++i] ?? ''
   } else if (arg.startsWith('--only=')) {
     onlyId = arg.slice('--only='.length)
-  } else if (['--dry-run', '--keep-drive', '--retry-failed'].includes(arg)) {
+  } else if (['--dry-run', '--retry-failed'].includes(arg)) {
     flags.add(arg)
   } else {
     console.error(`Unknown option: ${arg}`)
@@ -64,7 +63,6 @@ if (onlyId !== null && !/^[0-9a-f-]{36}$/i.test(onlyId)) {
   process.exit(2)
 }
 const dryRun = flags.has('--dry-run')
-const keepDrive = flags.has('--keep-drive')
 const retryFailed = flags.has('--retry-failed')
 
 const num = (value, fallback) => (Number(value) > 0 ? Number(value) : fallback)
@@ -206,7 +204,7 @@ try {
   process.exit(1)
 }
 
-const counts = { migrated: 0, already: 0, failed: 0, warnings: 0, dry: 0 }
+const counts = { migrated: 0, already: 0, failed: 0, dry: 0 }
 
 async function migratedElsewhere(id) {
   const { data } = await supabase.from('document').select('migrated_at').eq('id', id).maybeSingle()
@@ -225,10 +223,7 @@ async function migrateOne(row) {
   const objectPath = `drive-${row.id}.${extFor(file.name, file.mimeType)}`
 
   if (dryRun) {
-    log(
-      `  ${label}: Drive file "${file.name}" (${file.mimeType}, ${mb(size)} MB) would be copied to documents/${objectPath}; ` +
-        `${file.trashed ? 'it is already in the Drive trash' : file.capabilities?.canTrash ? 'the Drive copy could then be trashed' : 'WARNING: the service account cannot trash it (needs Editor access)'}.`,
-    )
+    log(`  ${label}: Drive file "${file.name}" (${file.mimeType}, ${mb(size)} MB) would be copied to documents/${objectPath}.`)
     return 'dry'
   }
 
@@ -260,19 +255,6 @@ async function migrateOne(row) {
   }
   log(`  ${label}: copied to documents/${objectPath} (${mb(bytes.length)} MB); row updated (was ${row.file_url}).`)
 
-  if (keepDrive) {
-    log(`  ${label}: Drive copy kept (--keep-drive).`)
-  } else if (file.trashed) {
-    log(`  ${label}: Drive copy was already in the Drive trash.`)
-  } else {
-    try {
-      await drive.trash(row.drive_file_id)
-      log(`  ${label}: Drive copy moved to the Drive trash.`)
-    } catch (err) {
-      counts.warnings++
-      log(`WARNING: ${label}: migrated, but the Drive copy could not be trashed (${err.message}). It is harmless; trash it by hand if you like.`)
-    }
-  }
   return 'migrated'
 }
 
@@ -301,6 +283,6 @@ if (!dryRun) fs.writeFileSync(stateFile, JSON.stringify(state, null, 2))
 log(
   dryRun
     ? `Drive migration (dry run) finished: ${counts.dry} would be moved, ${counts.failed} problem(s).`
-    : `Drive migration finished: ${counts.migrated} moved, ${counts.already} already done, ${counts.failed} failed${counts.warnings ? `, ${counts.warnings} warning(s)` : ''}${skipped ? `, ${skipped} skipped after repeated failures` : ''}.`,
+    : `Drive migration finished: ${counts.migrated} moved, ${counts.already} already done, ${counts.failed} failed${skipped ? `, ${skipped} skipped after repeated failures` : ''}.`,
 )
 process.exit(counts.failed ? 1 : 0)

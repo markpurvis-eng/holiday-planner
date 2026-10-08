@@ -1,11 +1,12 @@
-// Minimal Google Drive client for scripts/migrate-drive-documents.mjs: signs in as a
-// service account (RS256 JWT, built with node:crypto, so no extra package) and wraps the
-// three Drive v3 calls the migration needs. The key file is read, never logged.
+// Minimal read-only Google Drive client for scripts/migrate-drive-documents.mjs: signs in
+// as a service account (RS256 JWT, built with node:crypto, so no extra package) and wraps
+// the two Drive v3 calls the migration needs. The token only has the drive.readonly scope,
+// so this code cannot change anything in Drive. The key file is read, never logged.
 
 import fs from 'node:fs'
 import crypto from 'node:crypto'
 
-const SCOPE = 'https://www.googleapis.com/auth/drive'
+const SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
 const API = 'https://www.googleapis.com/drive/v3'
 const DEFAULT_TOKEN_URI = 'https://oauth2.googleapis.com/token'
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -72,18 +73,11 @@ export function createDriveClient(token) {
 
   return {
     async getFile(id) {
-      const fields = 'id,name,mimeType,size,md5Checksum,trashed,capabilities(canTrash,canDownload)'
+      const fields = 'id,name,mimeType,size,md5Checksum'
       return (await call(fileUrl(id, `&fields=${encodeURIComponent(fields)}`))).json()
     },
     async download(id) {
       return Buffer.from(await (await call(fileUrl(id, '&alt=media'))).arrayBuffer())
-    },
-    async trash(id) {
-      await call(fileUrl(id, '&fields=id'), {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trashed: true }),
-      })
     },
   }
 }
