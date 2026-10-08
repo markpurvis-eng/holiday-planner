@@ -30,9 +30,11 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
 - `supabase/migrations/` — one SQL file per schema change, plus a baseline of the
   schema at v3 (see "Database migrations and backups" at the end of this file).
 - `scripts/` — `backup.mjs` (database + Storage backup), `restore-storage.mjs`,
-  `gen-schema.mjs`, `geocode-pins.mjs` (one-off pin look-up), `sql/schema-catalog.sql`
-  and `lib/` (shared helpers).
+  `migrate-drive-documents.mjs` (Google Drive to Storage), `gen-schema.mjs`,
+  `geocode-pins.mjs` (one-off pin look-up), `sql/schema-catalog.sql` and `lib/`
+  (shared helpers, including `drive.mjs`).
 - `docs/backup-and-restore.md` — backup setup, scheduling and the restore runbook.
+- `docs/drive-migration.md` — Drive-to-Storage migration: setup, scheduling, troubleshooting.
 
 ## Conventions
 
@@ -313,12 +315,9 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   ALTER statements sat *before* `create table booking`, which would fail
   on a fresh database. Reconciled the whole file column-by-column against
   `information_schema.columns` rather than patching just the one thing
-  that prompted the check. **Found but unexplained**:
-  `document.drive_file_id`/`storage_path`/`migrated_at` exist live but
-  aren't created by anything in this repo or mentioned anywhere in this
-  file — added to `schema.sql` as a faithful mirror of what's live, but
-  their origin and purpose are unknown. Ask Mark before relying on or
-  removing them.
+  that prompted the check. **Origin now known**: `document.drive_file_id`/`storage_path`/`migrated_at` were
+  scaffolding for the Drive ingestion design (roadmap #39), and are used by
+  `scripts/migrate-drive-documents.mjs` (see "Drive document ingestion" at the end of this file).
 
 - **Collapsible "details" text on Booking/Itinerary cards**: `expandedDetails`
   (a `Set<string>` keyed by booking/itinerary_item id — both are UUIDs from
@@ -963,3 +962,51 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   VITE_ values. The live site changes only when that is run, so never assume a pushed
   commit is live, and don't tell Mark a change is "deployed" until he has run it. The
   laptop is linked to the site (`.netlify`, gitignored); the desktop is not yet.
+
+- **Drive document ingestion and migration to Storage (v1.39.0, roadmap #39).** Claude can't
+  write to Supabase Storage, so a file from an email or document is staged in Google Drive,
+  the `document` row points at it, and a script on Mark's PCs moves it into Storage later.
+  Runbook: `docs/drive-migration.md`.
+  **Claude's part, each time a file is to be attached:**
+  1. Get the file into Mark's Drive folder `gmail attachments` (id
+     `15OX2OoRtXqYiaBFfhz9vXEqfZaxvVOxF`) or a subfolder of it. His "claude"-label workflow
+     already downloads attachments there, unrenamed, so find it by file name. A file
+     anywhere else in Drive is invisible to the migration (the service account only sees
+     that folder). It must be an uploaded file (PDF, image, Word, text), not a Google Doc
+     or Sheet, and 40 MB or smaller.
+  2. Create or update the booking/itinerary item as usual, then insert the `document` row:
+     `type`, a clean `title` (the Drive file name is usually different and ugly), `note`,
+     the most specific of `booking_id` / `itinerary_item_id` (else `trip_id`),
+     `file_url` = `https://drive.google.com/file/d/<id>/view`, `drive_file_id` = `<id>`.
+     Leave `storage_path` and `migrated_at` null.
+  3. Tell Mark the file is linked to Drive for now and moves into Storage the next time the
+     migration task runs on one of his PCs.
+  **Don't:** set `storage_path` or `migrated_at` yourself, trash or move the Drive file (the
+  script trashes it after a verified copy), or store a Gmail permalink as a `document` (those
+  are `link` rows). Until a row is migrated its link opens Drive, so only Mark's Google
+  account can open it (not Andi's shared login), the in-app PDF viewer isn't used and it
+  isn't in the offline cache; say so if it matters for that document.
+  **The script** (`scripts/migrate-drive-documents.mjs`, helper `scripts/lib/drive.mjs`,
+  no new npm dependency) finds rows with `drive_file_id` set and `migrated_at` null,
+  downloads each file from Drive as a Google service account (key file path in `.env` as
+  `GOOGLE_SA_KEY_FILE`, kept in `C:\Users\markp\.hpa`, outside OneDrive and the repo),
+  checks size and Drive's MD5, uploads to `documents/drive-<document id>.<ext>`, reads the
+  bucket back to check the size, then updates the same row (`storage_path`, `migrated_at`,
+  `file_url` rewritten to the Storage URL, so the app needs no change) and finally moves the
+  Drive copy to the Drive trash. It uses the household login, like the backup, so it needs no
+  service-role key and no schema change. Any failure leaves the row pointing at Drive and
+  working; the row is retried at the next check, up to `HPA_MIGRATE_MAX_ATTEMPTS` (5) per
+  PC (counts in `%USERPROFILE%\.hpa\migrate-state.json`), then skipped with a warning until
+  `--retry-failed`. Google-native files and files over `HPA_MIGRATE_MAX_MB` (40) are not
+  retried. Options: `--dry-run`, `--only <document id>`, `--keep-drive`, `--retry-failed`.
+  **Scheduling:** a Windows scheduled task on each PC Mark uses (`Holiday Planner Drive
+  migration`, at log on and every 4 hours, same shape as the backup check). It does nothing
+  and needs no Google key when no row is waiting. Safe on two PCs at once: the Storage path
+  is fixed per row and overwritten, the row update only applies while `migrated_at` is
+  still null, and a Drive copy the other PC already trashed counts as done. It skips itself
+  while `backup.lock` is fresh. One log per PC, `migrate-drive-<computer name>.log`, in the
+  Logs folder. Tested (7 Oct 2026) against stubbed Supabase and Google: good file, Google
+  Doc, checksum mismatch, missing file, trash not permitted, a row finished by another
+  run, size mismatch in Storage, failed upload, failed row update, retry limit, locks, and
+  the no-key paths. **Not yet tried against the real Drive and Storage:** see the
+  roadmap doc for status.
