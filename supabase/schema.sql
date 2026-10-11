@@ -13,7 +13,7 @@
 --      grants them automatically).
 --   3. Regenerate this file:  node scripts/gen-schema.mjs
 --
--- Current schema_version: 3
+-- Current schema_version: 4
 -- Safe to run against an empty Supabase project (idempotent). Row data is not in this
 -- file: restore it from a backup dump (docs/backup-and-restore.md).
 
@@ -48,6 +48,9 @@ create table if not exists public.booking (
   address text,
   pin_lat double precision,
   pin_lng double precision,
+  type text,
+  details jsonb,
+  parent_booking_id uuid,
   constraint booking_pkey PRIMARY KEY (id),
   constraint booking_payment_status_check CHECK ((payment_status = ANY (ARRAY['unpaid'::text, 'partially_paid'::text, 'paid'::text])))
 );
@@ -182,10 +185,17 @@ create table if not exists public.trip_type (
 
 -- --- indexes ---------------------------------------------------------------
 
+create index if not exists booking_parent_booking_id_idx ON public.booking USING btree (parent_booking_id);
 create index if not exists document_itinerary_item_id_idx ON public.document USING btree (itinerary_item_id);
 create index if not exists link_itinerary_item_id_idx ON public.link USING btree (itinerary_item_id);
 
 -- --- foreign keys ----------------------------------------------------------
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'booking_parent_booking_id_fkey' and conrelid = 'public.booking'::regclass) then
+    alter table public.booking add constraint booking_parent_booking_id_fkey FOREIGN KEY (parent_booking_id) REFERENCES public.booking(id) ON DELETE SET NULL;
+  end if;
+end $$;
 
 do $$ begin
   if not exists (select 1 from pg_constraint where conname = 'booking_trip_id_fkey' and conrelid = 'public.booking'::regclass) then
@@ -295,7 +305,29 @@ begin
 end;
 $function$;
 
+CREATE OR REPLACE FUNCTION public.booking_enforce_depth_one()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+begin
+  if new.parent_booking_id = new.id then
+    raise exception 'A booking cannot be its own parent' using errcode = 'check_violation';
+  end if;
+  if exists (select 1 from public.booking p where p.id = new.parent_booking_id and p.parent_booking_id is not null) then
+    raise exception 'Nesting is limited to one level: the chosen parent is already a child' using errcode = 'check_violation';
+  end if;
+  if exists (select 1 from public.booking c where c.parent_booking_id = new.id) then
+    raise exception 'Nesting is limited to one level: this booking already has children' using errcode = 'check_violation';
+  end if;
+  return new;
+end
+$function$;
+
 -- --- triggers --------------------------------------------------------------
+
+drop trigger if exists booking_depth_one_guard on public.booking;
+CREATE TRIGGER booking_depth_one_guard BEFORE INSERT OR UPDATE OF parent_booking_id ON public.booking FOR EACH ROW WHEN ((new.parent_booking_id IS NOT NULL)) EXECUTE FUNCTION public.booking_enforce_depth_one();
 
 drop trigger if exists trg_add_trip_photos_link on public.trip;
 CREATE TRIGGER trg_add_trip_photos_link AFTER INSERT ON public.trip FOR EACH ROW EXECUTE FUNCTION public.add_trip_photos_link();
@@ -413,5 +445,6 @@ create policy "itineraries bucket read/write for authenticated" on storage.objec
 insert into public.schema_version (version, description, applied_at) values
   (1, 'Baseline: added Data API grants to all tables and the schema_version table', '2026-09-24T20:50:34.710926Z'::timestamptz),
   (2, 'Map pins: address, pin_lat, pin_lng on booking and itinerary_item', '2026-10-01T11:19:31.519883Z'::timestamptz),
-  (3, 'Todos: remind_from date (weekly email includes a todo only from this date)', '2026-10-03T08:24:29.804038Z'::timestamptz)
+  (3, 'Todos: remind_from date (weekly email includes a todo only from this date)', '2026-10-03T08:24:29.804038Z'::timestamptz),
+  (4, 'Booking types phase 1: booking.type, details (jsonb), parent_booking_id with depth-one guard; type backfilled', '2026-10-11T16:20:02.159840Z'::timestamptz)
 on conflict (version) do nothing;
