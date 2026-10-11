@@ -64,7 +64,8 @@ export function nextUpLabel(entry: TimelineEntry): { title: string; subtitle: st
 // tab and highlights itself.
 export function nextUpLinkTarget(entry: TimelineEntry): { tab: 'bookings' | 'itinerary'; id: string } {
   if (entry.kind === 'itineraryItem') return { tab: 'itinerary', id: entry.item.id }
-  // A flight leg highlights its own sub-card on the booking.
-  if (entry.kind === 'bookingSegment') return { tab: 'bookings', id: entry.segment.id }
+  // A flight leg highlights its own sub-card on the booking; other typed
+  // entries (check-in, embark, ...) highlight the whole booking card.
+  if (entry.kind === 'bookingSegment') return { tab: 'bookings', id: entry.segment.jumpId ?? entry.segment.id }
   return { tab: 'bookings', id: entry.booking.id }
 }

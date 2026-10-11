@@ -167,6 +167,18 @@ export async function getBooking(id: string): Promise<Booking | null> {
   return data
 }
 
+// The bookings nested directly under a parent (e.g. a cruise's excursions).
+// Depth is capped at one, so there are no grandchildren to look for.
+export async function getChildBookings(parentId: string): Promise<Booking[]> {
+  const { data, error } = await supabase
+    .from('booking')
+    .select('*')
+    .eq('parent_booking_id', parentId)
+    .order('start_date', { ascending: true })
+  if (error) throw error
+  return data ?? []
+}
+
 export async function createBooking(booking: Partial<Booking>): Promise<Booking> {
   const { data, error } = await supabase.from('booking').insert(booking).select().single()
   if (error) throw error

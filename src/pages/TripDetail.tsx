@@ -34,6 +34,8 @@ import { resolveEntryTimezone, homeTimeLabel } from '../lib/timezone'
 import { buildAttachmentGroups } from '../lib/attachmentGroups'
 import { CostsTab } from '../components/CostsTab'
 import { BookingTypeBody } from '../components/BookingTypeBody'
+import { ExcursionsTotal } from '../components/ExcursionsTotal'
+import { childOutsideParentDates } from '../lib/bookingTypes/nesting'
 import { bookingHeadline, bookingHasTypeExtras } from '../lib/bookingTypes/registry'
 
 // Leaflet is only needed when the Map tab is opened, so it loads on demand
@@ -286,6 +288,19 @@ export default function TripDetail() {
     .filter((item) => !hideCancelled || !item.cancelled)
     .filter((item) => paymentFilters.size === 0 || (item.cost != null && paymentFilters.has(item.payment_status)))
 
+  // Parent/child nesting (Missing Features #83): a child (an excursion under a
+  // cruise) is listed straight after its parent, in date order, and indented.
+  // A child whose parent is hidden by a filter, or is on another trip, is
+  // listed as an ordinary top-level booking instead of vanishing.
+  const visibleIds = new Set(visibleBookings.map((b) => b.id))
+  const byDate = (a: Booking, b: Booking) =>
+    (a.start_date ?? '').localeCompare(b.start_date ?? '') || (a.start_time ?? '').localeCompare(b.start_time ?? '')
+  const isNestedChild = (b: Booking) => b.parent_booking_id != null && visibleIds.has(b.parent_booking_id)
+  const childrenOf = (parentId: string) => visibleBookings.filter((c) => c.parent_booking_id === parentId).sort(byDate)
+  const orderedBookings = visibleBookings
+    .filter((b) => !isNestedChild(b))
+    .flatMap((b) => [b, ...childrenOf(b.id)])
+
   // Booking start/end markers on the Itinerary tab respect hideCancelled
   // (consistent with cancelled itinerary items also being hidden there),
   // but deliberately not paymentFilters — a "trip begins" marker isn't a
@@ -456,20 +471,27 @@ export default function TripDetail() {
             {bookings.length > 0 && visibleBookings.length === 0 && (
               <EmptyState text="No bookings match the current filters." />
             )}
-            {visibleBookings.map((b) => {
+            {orderedBookings.map((b) => {
               // Type-driven card (Missing Features #83): null for any booking
               // without a registry layout + usable details, which then keeps
               // the generic card exactly as before.
               const headline = bookingHeadline(b)
               const hasTypeExtras = bookingHasTypeExtras(b)
+              const parent = b.parent_booking_id ? bookings.find((p) => p.id === b.parent_booking_id) : undefined
+              const nested = isNestedChild(b)
+              const children = bookings.filter((c) => c.parent_booking_id === b.id)
+              const outsideParent = parent ? childOutsideParentDates(b, parent) : false
               return (
               <div
                 key={b.id}
                 id={`item-${b.id}`}
                 className={`rounded-2xl bg-white p-4 shadow-sm transition-shadow ${
                   b.id === highlightId ? 'ring-2 ring-teal-400' : 'ring-1 ring-stone-100'
-                }`}
+                } ${nested ? 'ml-5 border-l-4 border-teal-100' : ''}`}
               >
+                {parent && (
+                  <p className="mb-1 text-xs text-stone-400">↳ Part of {parent.provider_name}</p>
+                )}
                 <div className="flex items-center justify-between">
                   <h3
                     className={`font-semibold text-stone-800 ${b.cancelled ? 'line-through' : ''}`}
@@ -501,6 +523,13 @@ export default function TripDetail() {
                   <p className="text-sm text-stone-500">{formatMoney(b.cost, b.currency)}</p>
                 )}
                 <BookingTypeBody booking={b} expanded={expandedDetails.has(b.id)} highlightId={highlightId} />
+                {outsideParent && parent && (
+                  <p className="mt-1 rounded-lg bg-amber-50 px-2 py-1 text-xs text-amber-700">
+                    These dates fall outside {parent.provider_name}'s dates. Fine for a transfer a day either side,
+                    but worth a check.
+                  </p>
+                )}
+                {children.length > 0 && <ExcursionsTotal excursions={children} />}
                 {(b.extracted_details || b.notes || hasTypeExtras) && (
                   <div className="mt-2">
                     <button
@@ -585,7 +614,7 @@ export default function TripDetail() {
                   <button
                     key={segment.id}
                     type="button"
-                    onClick={() => handleJumpTo('bookings', segment.id)}
+                    onClick={() => handleJumpTo('bookings', segment.jumpId ?? segment.id)}
                     className="flex w-full items-center gap-3 rounded-2xl bg-stone-50 p-4 text-left shadow-sm ring-1 ring-stone-200 transition-shadow hover:ring-teal-300"
                   >
                     <div className="w-16 shrink-0 text-sm text-stone-500">
@@ -1030,4 +1059,4 @@ function EmptyState({ text }: { text: string }) {
       {text}
     </p>
   )
-}
+}

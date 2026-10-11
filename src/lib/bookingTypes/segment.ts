@@ -4,6 +4,12 @@
 export type TimelineSegment = {
   /** Unique across the app: `${booking.id}-${segment key}`. Also the highlight/jump target. */
   id: string
+  /**
+   * DOM id to jump to and highlight when the entry is tapped. Defaults to `id`
+   * (a flight leg has its own sub-card); entries that have no sub-card of their
+   * own (hotel check-in, cruise embark, ...) point at the whole booking card.
+   */
+  jumpId?: string
   /** "Flight", "Train", ... */
   kindLabel: string
   /** "LHR → YOW" */

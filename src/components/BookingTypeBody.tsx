@@ -1,12 +1,15 @@
 import type { Booking } from '../lib/types'
 import { parseFlightDetails } from '../lib/bookingTypes/flight'
+import { bookingBody } from '../lib/bookingTypes/registry'
+import type { Row } from '../lib/bookingTypes/fields'
 import type { FlightLeg } from '../lib/bookingTypes/flight'
 import { airportName, airportTimezone } from '../lib/bookingTypes/airports'
 import { formatDate, formatDayAbbrev, formatTime } from '../lib/format'
 import { HOME_TIMEZONE, homeTimeLabel } from '../lib/timezone'
 
 // The type-specific body of a booking card (Missing Features #83): for a flight
-// with usable details, one sub-card per leg. Renders nothing for any other
+// with usable details, one sub-card per leg; for a cruise, hotel, car hire,
+// excursion or transfer, its label/value rows. Renders nothing for any other
 // booking, so those keep today's generic card. `expanded` is the card's
 // existing "Show details" state; the extra fields (operator, baggage, aircraft,
 // e-tickets) only appear when it is open.
@@ -19,7 +22,7 @@ export function BookingTypeBody({
   expanded: boolean
   highlightId: string | null
 }) {
-  if (booking.type !== 'flight') return null
+  if (booking.type !== 'flight') return <RowsBody booking={booking} expanded={expanded} />
   const d = parseFlightDetails(booking.details)
   if (!d) return null
   return (
@@ -39,6 +42,29 @@ export function BookingTypeBody({
             ))}
         </div>
       )}
+    </div>
+  )
+}
+
+function RowList({ rows }: { rows: Row[] }) {
+  return (
+    <>
+      {rows.map((r) => (
+        <p key={r.label} className="whitespace-pre-line text-sm text-stone-600">
+          <span className="text-stone-400">{r.label}</span> {r.value}
+        </p>
+      ))}
+    </>
+  )
+}
+
+function RowsBody({ booking, expanded }: { booking: Booking; expanded: boolean }) {
+  const body = bookingBody(booking)
+  if (!body || (body.rows.length === 0 && (!expanded || body.extra.length === 0))) return null
+  return (
+    <div className="mt-1 space-y-0.5">
+      <RowList rows={body.rows} />
+      {expanded && <RowList rows={body.extra} />}
     </div>
   )
 }

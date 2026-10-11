@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { getBooking, getTrip, updateBooking } from '../lib/api'
+import { getBooking, getChildBookings, getTrip, updateBooking } from '../lib/api'
 import type { Booking, PaymentStatus } from '../lib/types'
+import { formatMoney } from '../lib/format'
+import { PaymentBadge } from '../components/PaymentBadge'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { CurrencyQuickPicks } from '../components/CurrencyQuickPicks'
 import { AddressField } from '../components/AddressField'
@@ -30,6 +32,8 @@ export default function EditBooking() {
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(false)
+  // Set when cancelling a booking that has children: the save waits for the choice below.
+  const [pendingChildren, setPendingChildren] = useState<Booking[] | null>(null)
   const pin = useAddressPin(null)
   const loadPin = pin.load
 
@@ -60,6 +64,32 @@ export default function EditBooking() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!booking || !providerName.trim()) return
+    // Cancelling a parent (a cruise with excursions) asks what to do with its
+    // children instead of cascading silently: an independent operator's
+    // excursion may still be refundable (Missing Features #83, decision 10).
+    if (cancelled && !booking.cancelled) {
+      setSaving(true)
+      setError(false)
+      try {
+        const kids = (await getChildBookings(booking.id)).filter((k) => !k.cancelled)
+        if (kids.length > 0) {
+          setPendingChildren(kids)
+          setSaving(false)
+          return
+        }
+      } catch {
+        setError(true)
+        setSaving(false)
+        return
+      }
+    }
+    await save([])
+  }
+
+  // Saves the booking, and also marks `alsoCancel` (children) as cancelled.
+  async function save(alsoCancel: Booking[]) {
+    if (!booking) return
+    setPendingChildren(null)
     setSaving(true)
     setError(false)
     try {
@@ -90,6 +120,9 @@ export default function EditBooking() {
         ...addressFields,
         ...(shouldClearLock ? { fx_rate_to_gbp: null, fx_rate_locked_at: null } : {}),
       })
+      for (const kid of alsoCancel) {
+        await updateBooking(kid.id, { cancelled: true })
+      }
       navigate(tripId ? `/trips/${tripId}?tab=bookings&highlight=${booking.id}` : '/')
     } catch {
       setError(true)
@@ -251,6 +284,52 @@ export default function EditBooking() {
             className="w-full rounded-xl border border-stone-200 px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
           />
         </div>
+
+        {pendingChildren && (
+          <div className="space-y-2 rounded-xl bg-amber-50 p-3 ring-1 ring-amber-200">
+            <p className="text-sm font-medium text-amber-800">
+              This booking has {pendingChildren.length === 1 ? 'an excursion' : `${pendingChildren.length} excursions`}{' '}
+              under it. What should happen to {pendingChildren.length === 1 ? 'it' : 'them'}?
+            </p>
+            <ul className="space-y-1.5">
+              {pendingChildren.map((k) => (
+                <li key={k.id} className="flex items-center justify-between gap-2 text-sm text-stone-700">
+                  <span className="min-w-0 flex-1">
+                    {k.provider_name}
+                    {k.cost != null && <span className="text-stone-500"> · {formatMoney(k.cost, k.currency)}</span>}
+                  </span>
+                  <PaymentBadge status={k.payment_status} />
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-amber-700">
+              An excursion with an independent operator may still be refundable, so check before cancelling it.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => void save([])}
+                className="rounded-xl bg-white py-2 text-sm font-medium text-stone-700 ring-1 ring-stone-200 hover:bg-stone-50"
+              >
+                Cancel this booking only
+              </button>
+              <button
+                type="button"
+                onClick={() => void save(pendingChildren)}
+                className="rounded-xl bg-amber-600 py-2 text-sm font-medium text-white hover:bg-amber-700"
+              >
+                Cancel it and {pendingChildren.length === 1 ? 'this excursion' : 'these excursions'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPendingChildren(null)}
+                className="py-1 text-sm font-medium text-stone-500 hover:text-stone-700"
+              >
+                Back to editing
+              </button>
+            </div>
+          </div>
+        )}
 
         {error && (
           <p className="text-sm text-red-500">Couldn't save — check your connection and try again.</p>
