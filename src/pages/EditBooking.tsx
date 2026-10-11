@@ -288,8 +288,8 @@ export default function EditBooking() {
         {pendingChildren && (
           <div className="space-y-2 rounded-xl bg-amber-50 p-3 ring-1 ring-amber-200">
             <p className="text-sm font-medium text-amber-800">
-              This booking has {pendingChildren.length === 1 ? 'an excursion' : `${pendingChildren.length} excursions`}{' '}
-              under it. What should happen to {pendingChildren.length === 1 ? 'it' : 'them'}?
+              This booking has {pendingChildren.length === 1 ? 'a linked booking' : `${pendingChildren.length} linked bookings`}{' '}
+              under it (an excursion or a stay). What should happen to {pendingChildren.length === 1 ? 'it' : 'them'}?
             </p>
             <ul className="space-y-1.5">
               {pendingChildren.map((k) => (
@@ -303,7 +303,7 @@ export default function EditBooking() {
               ))}
             </ul>
             <p className="text-xs text-amber-700">
-              An excursion with an independent operator may still be refundable, so check before cancelling it.
+              An excursion or stay booked separately may still be refundable, so check before cancelling it.
             </p>
             <div className="flex flex-col gap-2">
               <button
@@ -318,7 +318,7 @@ export default function EditBooking() {
                 onClick={() => void save(pendingChildren)}
                 className="rounded-xl bg-amber-600 py-2 text-sm font-medium text-white hover:bg-amber-700"
               >
-                Cancel it and {pendingChildren.length === 1 ? 'this excursion' : 'these excursions'}
+                Cancel it and {pendingChildren.length === 1 ? 'this booking' : 'these bookings'}
               </button>
               <button
                 type="button"

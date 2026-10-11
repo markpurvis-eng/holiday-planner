@@ -5,9 +5,9 @@ import { dateRangeText, detailsObject, num, rowsOf, startEndSegments, str } from
 import type { TypeBody } from './fields'
 
 // Cruise details. Embark and disembark dates and times used by the timeline stay
-// in the core booking columns; the embark_time / disembark_time here are the
-// times printed on the confirmation (for example the sailing time) and are only
-// displayed.
+// in the core booking columns; the embark_time / disembark_time here repeat them
+// for display, and departure_time is when the ship sails (shown as "Departs"),
+// which is not the boarding time. All three are display-only.
 export type CruiseExtra = {
   name: string
   paid: boolean
@@ -26,6 +26,8 @@ export type CruiseDetails = {
   embark_port: string | null
   embark_terminal: string | null
   embark_time: string | null
+  /** When the ship sails, as opposed to when boarding starts. */
+  departure_time: string | null
   disembark_port: string | null
   disembark_terminal: string | null
   disembark_time: string | null
@@ -55,6 +57,7 @@ export function parseCruiseDetails(raw: unknown): CruiseDetails | null {
     embark_port: str(o.embark_port),
     embark_terminal: str(o.embark_terminal),
     embark_time: str(o.embark_time),
+    departure_time: str(o.departure_time),
     disembark_port: str(o.disembark_port),
     disembark_terminal: str(o.disembark_terminal),
     disembark_time: str(o.disembark_time),
@@ -92,6 +95,7 @@ export function cruiseBody(d: CruiseDetails): TypeBody {
       ['Cabin', cabin],
       ['Dining', d.dining],
       ['Embark', portLine(d.embark_port, d.embark_terminal, d.embark_time)],
+      ['Departs', d.departure_time],
       ['Disembark', portLine(d.disembark_port, d.disembark_terminal, d.disembark_time)],
       ['Extras', extras],
     ]),
