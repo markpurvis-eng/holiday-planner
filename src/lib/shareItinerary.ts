@@ -41,6 +41,12 @@ export function buildDayGroups(bookings: Booking[], itinerary: ItineraryItem[]):
       group(entry.date).lines.push(`${timePrefix}${entry.item.type}: ${entry.item.venue ?? ''}`)
       continue
     }
+    if (entry.kind === 'bookingSegment') {
+      const { segment } = entry
+      const label = `${segment.kindLabel}${segment.subtitle ? ` ${segment.subtitle}` : ''}`
+      group(entry.date).lines.push(`${timePrefix}${label}: ${segment.title}`)
+      continue
+    }
     const destination = entry.booking.destination_name ? ` - ${entry.booking.destination_name}` : ''
     if (entry.kind === 'bookingStart') {
       group(entry.date).lines.push(`${timePrefix}${entry.booking.provider_name} begins${destination}`)

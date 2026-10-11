@@ -39,6 +39,14 @@ export function findNextUp(bookings: Booking[], itinerary: ItineraryItem[]): Tim
 // rather than in the component so anything else that wants to render a
 // TimelineEntry the same way (unlikely today, but cheap to share) can.
 export function nextUpLabel(entry: TimelineEntry): { title: string; subtitle: string; icon: string } {
+  if (entry.kind === 'bookingSegment') {
+    const { segment } = entry
+    return {
+      title: segment.title,
+      subtitle: `${segment.kindLabel}${segment.subtitle ? ` ${segment.subtitle}` : ''}`,
+      icon: segment.icon,
+    }
+  }
   if (entry.kind === 'bookingStart') {
     return { title: entry.booking.provider_name, subtitle: 'Begins', icon: '🛎️' }
   }
@@ -56,5 +64,7 @@ export function nextUpLabel(entry: TimelineEntry): { title: string; subtitle: st
 // tab and highlights itself.
 export function nextUpLinkTarget(entry: TimelineEntry): { tab: 'bookings' | 'itinerary'; id: string } {
   if (entry.kind === 'itineraryItem') return { tab: 'itinerary', id: entry.item.id }
+  // A flight leg highlights its own sub-card on the booking.
+  if (entry.kind === 'bookingSegment') return { tab: 'bookings', id: entry.segment.id }
   return { tab: 'bookings', id: entry.booking.id }
 }

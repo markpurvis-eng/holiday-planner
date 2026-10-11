@@ -51,6 +51,12 @@ export type Booking = {
   pin_lng: number | null
   fx_rate_to_gbp: number | null
   fx_rate_locked_at: string | null
+  /** Booking type (flight, cruise, hotel, ...). The registry in lib/bookingTypes owns the valid values. */
+  type: string | null
+  /** Type-specific fields as JSON (includes "v": 1). Read it through the registry, never directly. */
+  details: Record<string, unknown> | null
+  /** Parent booking (e.g. a cruise for an excursion). Depth is capped at one in the database. */
+  parent_booking_id: string | null
 }
 
 export type Expense = {

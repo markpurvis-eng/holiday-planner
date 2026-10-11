@@ -37,6 +37,10 @@ export function resolveTimezone(lat: number | null | undefined, lng: number | nu
 // missing its own coordinates won't get one either) — an intentional
 // trade of fewer-but-correct over more-but-sometimes-wrong.
 export function resolveEntryTimezone(entry: TimelineEntry): string | null {
+  // A flight leg knows its departure airport's timezone, so (unlike a
+  // coordinate-less booking) it can be labelled correctly — this also fixes
+  // the missing home-time label on flights (Fixed #62).
+  if (entry.kind === 'bookingSegment') return entry.segment.tz
   const lat = entry.kind === 'itineraryItem' ? entry.item.destination_lat : entry.booking.destination_lat
   const lng = entry.kind === 'itineraryItem' ? entry.item.destination_lng : entry.booking.destination_lng
   return resolveTimezone(lat, lng)

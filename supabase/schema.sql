@@ -13,7 +13,7 @@
 --      grants them automatically).
 --   3. Regenerate this file:  node scripts/gen-schema.mjs
 --
--- Current schema_version: 4
+-- Current schema_version: 5
 -- Safe to run against an empty Supabase project (idempotent). Row data is not in this
 -- file: restore it from a backup dump (docs/backup-and-restore.md).
 
@@ -446,5 +446,6 @@ insert into public.schema_version (version, description, applied_at) values
   (1, 'Baseline: added Data API grants to all tables and the schema_version table', '2026-09-24T20:50:34.710926Z'::timestamptz),
   (2, 'Map pins: address, pin_lat, pin_lng on booking and itinerary_item', '2026-10-01T11:19:31.519883Z'::timestamptz),
   (3, 'Todos: remind_from date (weekly email includes a todo only from this date)', '2026-10-03T08:24:29.804038Z'::timestamptz),
-  (4, 'Booking types phase 1: booking.type, details (jsonb), parent_booking_id with depth-one guard; type backfilled', '2026-10-11T16:20:02.159840Z'::timestamptz)
+  (4, 'Booking types phase 1: booking.type, details (jsonb), parent_booking_id with depth-one guard; type backfilled', '2026-10-11T16:20:02.159840Z'::timestamptz),
+  (5, 'Booking types phase 2: details (legs, passengers) filled for the 7 flight bookings', '2026-10-11T18:32:45.817421Z'::timestamptz)
 on conflict (version) do nothing;

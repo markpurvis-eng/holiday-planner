@@ -1,8 +1,13 @@
 import type { Booking, ItineraryItem } from './types'
+import { bookingSegments } from './bookingTypes/registry'
+import type { TimelineSegment } from './bookingTypes/segment'
 
 export type TimelineEntry =
   | { kind: 'bookingStart'; date: string; time: string | null; booking: Booking }
   | { kind: 'bookingEnd'; date: string; time: string | null; booking: Booking }
+  // One journey segment of a typed booking (a flight leg). Produced by the
+  // booking-type registry in place of the generic begin/end markers.
+  | { kind: 'bookingSegment'; date: string; time: string | null; booking: Booking; segment: TimelineSegment }
   | { kind: 'itineraryItem'; date: string; time: string | null; item: ItineraryItem }
 
 // Merges bookings and itinerary items into one chronological timeline.
@@ -28,6 +33,16 @@ export function mergeItineraryTimeline(bookings: Booking[], itinerary: Itinerary
   const entries: TimelineEntry[] = []
 
   for (const b of bookings) {
+    // A typed booking with usable details contributes its own entries (one
+    // per flight leg) instead of the generic begin/end markers. Anything
+    // else falls through to the markers below, unchanged.
+    const segments = bookingSegments(b)
+    if (segments) {
+      for (const s of segments) {
+        entries.push({ kind: 'bookingSegment', date: s.date, time: s.time, booking: b, segment: s.segment })
+      }
+      continue
+    }
     if (b.start_date) {
       entries.push({ kind: 'bookingStart', date: b.start_date, time: b.start_time, booking: b })
     }
@@ -49,7 +64,8 @@ export function mergeItineraryTimeline(bookings: Booking[], itinerary: Itinerary
   // positions for booking markers still missing a time.
   function tier(e: TimelineEntry): number {
     if (e.kind === 'itineraryItem' || e.time) return 1
-    return e.kind === 'bookingStart' ? 0 : 2
+    // An untimed segment sorts like an untimed start marker: before the day's timed entries.
+    return e.kind === 'bookingEnd' ? 2 : 0
   }
 
   return entries.sort((a, b) => {

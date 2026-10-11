@@ -33,6 +33,8 @@ import type { TimelineEntry } from '../lib/itineraryTimeline'
 import { resolveEntryTimezone, homeTimeLabel } from '../lib/timezone'
 import { buildAttachmentGroups } from '../lib/attachmentGroups'
 import { CostsTab } from '../components/CostsTab'
+import { BookingTypeBody } from '../components/BookingTypeBody'
+import { bookingHeadline, bookingHasTypeExtras } from '../lib/bookingTypes/registry'
 
 // Leaflet is only needed when the Map tab is opened, so it loads on demand
 // rather than adding to the main bundle every other tab ships with.
@@ -454,7 +456,13 @@ export default function TripDetail() {
             {bookings.length > 0 && visibleBookings.length === 0 && (
               <EmptyState text="No bookings match the current filters." />
             )}
-            {visibleBookings.map((b) => (
+            {visibleBookings.map((b) => {
+              // Type-driven card (Missing Features #83): null for any booking
+              // without a registry layout + usable details, which then keeps
+              // the generic card exactly as before.
+              const headline = bookingHeadline(b)
+              const hasTypeExtras = bookingHasTypeExtras(b)
+              return (
               <div
                 key={b.id}
                 id={`item-${b.id}`}
@@ -480,7 +488,8 @@ export default function TripDetail() {
                 {b.confirmation_ref && (
                   <p className="mt-1 text-sm text-stone-500">Ref: {b.confirmation_ref}</p>
                 )}
-                {(b.start_date || b.end_date) && (
+                {headline && <p className="mt-1 text-sm font-medium text-stone-700">{headline}</p>}
+                {!headline && (b.start_date || b.end_date) && (
                   <p className="text-sm text-stone-500">
                     {b.start_date ? formatDate(b.start_date) : ''}
                     {b.start_time ? ` ${formatTime(b.start_time)}` : ''}
@@ -491,7 +500,8 @@ export default function TripDetail() {
                 {b.cost != null && (
                   <p className="text-sm text-stone-500">{formatMoney(b.cost, b.currency)}</p>
                 )}
-                {(b.extracted_details || b.notes) && (
+                <BookingTypeBody booking={b} expanded={expandedDetails.has(b.id)} highlightId={highlightId} />
+                {(b.extracted_details || b.notes || hasTypeExtras) && (
                   <div className="mt-2">
                     <button
                       type="button"
@@ -546,7 +556,8 @@ export default function TripDetail() {
                   </Link>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </>
         )}
 
@@ -565,6 +576,37 @@ export default function TripDetail() {
               <EmptyState text="No itinerary items match the current filters." />
             )}
             {timeline.map((entry) => {
+              // One card per journey segment (a flight leg), so outward and
+              // return are separate entries. Tapping jumps to that leg's
+              // sub-card on the Bookings tab.
+              if (entry.kind === 'bookingSegment') {
+                const { segment } = entry
+                return (
+                  <button
+                    key={segment.id}
+                    type="button"
+                    onClick={() => handleJumpTo('bookings', segment.id)}
+                    className="flex w-full items-center gap-3 rounded-2xl bg-stone-50 p-4 text-left shadow-sm ring-1 ring-stone-200 transition-shadow hover:ring-teal-300"
+                  >
+                    <div className="w-16 shrink-0 text-sm text-stone-500">
+                      <div>{formatDayAbbrev(entry.date)}</div>
+                      <div>{formatDate(entry.date, { day: 'numeric', month: 'short' })}</div>
+                      {entry.time && <div>{formatTime(entry.time)}</div>}
+                      {homeTimeFor(entry) && <div className="text-[11px] text-stone-400">{homeTimeFor(entry)}</div>}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
+                        {segment.icon} {segment.kindLabel}
+                        {segment.subtitle ? ` ${segment.subtitle}` : ''}
+                      </p>
+                      <p className="font-medium text-stone-700">{segment.title}</p>
+                      {segment.detail && <p className="text-sm text-stone-500">{segment.detail}</p>}
+                    </div>
+                    <span className="shrink-0 text-xs text-teal-600">View →</span>
+                  </button>
+                )
+              }
+
               if (entry.kind === 'bookingStart' || entry.kind === 'bookingEnd') {
                 const booking = entry.booking
                 return (
