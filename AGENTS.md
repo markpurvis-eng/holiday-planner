@@ -331,8 +331,8 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   (renamed from `status` — see below) with the same toggle — that column
   existed in the data but was never rendered anywhere before this. Plain
   conditional rendering, no animation — a deliberately simpler mechanism
-  than the auto-hiding-header attempt (tried and reverted, see the roadmap
-  doc), since a card either shows its details paragraph or doesn't, with
+  than the auto-hiding-header attempt (tried and reverted, see Missing
+  Features #40 in `Holiday_App_Live_Issues.md`), since a card either shows its details paragraph or doesn't, with
   nothing to get wrong about scroll position or layout height in between.
 
 - **`extracted_details` / `notes` split (renamed 16 Sep 2026)**: `booking`'s
@@ -341,8 +341,8 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   extracted from a confirmation/source document, not anything Mark writes
   himself. A separate, new `notes` column on each table holds personal
   annotations. Kept deliberately apart rather than one shared field: the
-  Gmail/Drive ingestion design (see the roadmap doc, and
-  `Holiday_App_Architecture_Notes.md`) will eventually write freshly
+  Gmail/Drive ingestion design (built in v1.39.0, see the end of this file and
+  `Holiday_App_Architecture_Notes.md`) can write freshly
   re-extracted text straight into `extracted_details` — if a personal note
   lived in the same field, that write would risk silently clobbering it.
   `itinerary_item.status`'s original intent (it read more like a workflow
@@ -424,11 +424,12 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   behaviour, just a different trigger). New `deleteDocument()`/`deleteLink()`
   in `api.ts`: `deleteDocument()` also best-effort removes the underlying
   Storage object (parsed back out of the public URL) rather than leaving it
-  orphaned the way a raw-SQL row delete did (see the roadmap's Fixed #21).
+  orphaned the way a raw-SQL row delete did (see Fixed #21 in the archive,
+  `Holiday_App_Issues_and_Roadmap.md`).
   **Deliberately excluded**: bookings/itinerary items (no real delete exists
-  for these at all, by design — see the roadmap for why) and Trip Types in
+  for these at all, by design — see the archive for why) and Trip Types in
   Settings. **Not built in this pass**: re-pointing an attachment at a
-  different Trip/Booking/Itinerary item — the roadmap's original ask
+  different Trip/Booking/Itinerary item — the original ask
   mentioned this alongside delete, but it needs its own attach-mode-picker UI
   inside the action sheet and was descoped to ship delete first; worth
   revisiting as a fast-follow on the same `LongPressMenu`.
@@ -1008,8 +1009,10 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   Logs folder. Tested (7 Oct 2026) against stubbed Supabase and Google: good file, Google
   Doc, checksum mismatch, missing file, a row finished by another run (and that no write
   ever reaches Drive), size mismatch in Storage, failed upload, failed row update, retry limit, locks, and
-  the no-key paths. **Not yet tried against the real Drive and Storage:** see the
-  roadmap doc for status.
+  the no-key paths. **Tried for real (8 Oct 2026):** two invoices migrated and open in the
+  in-app PDF viewer, and the scheduled task on the desktop runs and logs "nothing waiting".
+  Still to confirm: the laptop's own key and task, and the first real "Holiday Drive tidy"
+  run (see Missing Features #39 in `Holiday_App_Live_Issues.md`).
   **Tidying the Drive copies (a Claude scheduled task, no repo code):** "Holiday Drive tidy"
   runs weekly (Mondays 08:15 UK) in the cloud through the Supabase and Google Drive
   connectors. It reads (never writes) `document` rows with `migrated_at` between 1 and 45
@@ -1017,3 +1020,16 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   `gmail attachments` (or a subfolder), and trashes it (recoverable for 30 days). Mark can
   also ask for it in any session ("tidy the migrated Drive files"): do exactly the same.
   Never trash a Drive file whose row has no `migrated_at`, and never delete one permanently.
+
+## Issue tracking docs (split 8 Oct 2026)
+
+These live in the claude.ai Project, not in the repo. "The roadmap" in older notes above means
+these two docs together.
+
+- `Holiday_App_Live_Issues.md`: what is open now. Bugs and unbuilt Missing Features only.
+- `Holiday_App_Issues_and_Roadmap.md`: the archive. Fixed and Dropped items, with the history
+  and reasoning for each. Its own Bugs and Missing Features sections are out of date.
+- Numbers are shared across both docs and never reused. When something is finished or
+  dropped, add an entry to the archive under the next free number (the live doc says what
+  it is) and delete the item from the live doc. Design decisions go in
+  `Holiday_App_Architecture_Notes.md`, not in either tracker.
