@@ -3,12 +3,15 @@ import type { FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { getBooking, getChildBookings, getTrip, updateBooking } from '../lib/api'
 import type { Booking, PaymentStatus } from '../lib/types'
-import { formatMoney } from '../lib/format'
+import { formatDate, formatMoney, formatTime } from '../lib/format'
 import { PaymentBadge } from '../components/PaymentBadge'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { CurrencyQuickPicks } from '../components/CurrencyQuickPicks'
 import { AddressField } from '../components/AddressField'
 import { useAddressPin } from '../lib/useAddressPin'
+import { FlightLegsEditor } from '../components/FlightLegsEditor'
+import { buildFlightDetails, flightFormFromDetails } from '../lib/bookingTypes/flightForm'
+import type { FlightForm } from '../lib/bookingTypes/flightForm'
 
 export default function EditBooking() {
   const navigate = useNavigate()
@@ -32,6 +35,10 @@ export default function EditBooking() {
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(false)
+  // Flight bookings edit their legs here; the core dates are derived from them on save.
+  const [flightForm, setFlightForm] = useState<FlightForm | null>(null)
+  // Set by a failed save: from then on the missing fields are shown live, all at once.
+  const [flightTried, setFlightTried] = useState(false)
   // Set when cancelling a booking that has children: the save waits for the choice below.
   const [pendingChildren, setPendingChildren] = useState<Booking[] | null>(null)
   const pin = useAddressPin(null)
@@ -54,6 +61,7 @@ export default function EditBooking() {
       setCancelled(b.cancelled)
       setExtractedDetails(b.extracted_details ?? '')
       setNotes(b.notes ?? '')
+      setFlightForm(b.type === 'flight' ? flightFormFromDetails(b.details) : null)
       loadPin({ address: b.address, pin_lat: b.pin_lat, pin_lng: b.pin_lng })
     })
     if (tripId) {
@@ -64,6 +72,12 @@ export default function EditBooking() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!booking || !providerName.trim()) return
+    if (flightForm) {
+      if (buildFlightDetails(flightForm).errors.length > 0) {
+        setFlightTried(true)
+        return
+      }
+    }
     // Cancelling a parent (a cruise with excursions) asks what to do with its
     // children instead of cascading silently: an independent operator's
     // excursion may still be refundable (Missing Features #83, decision 10).
@@ -95,6 +109,15 @@ export default function EditBooking() {
     try {
       const addressFields = await pin.resolveForSave()
       if (!addressFields) return
+      // A flight's details come from the leg editor, and its core dates and times
+      // are derived from the legs (design decision 15) so sorting, Next Up,
+      // Search, the share PDF and Costs keep working unchanged.
+      const flight = flightForm ? buildFlightDetails(flightForm) : null
+      if (flight && flight.errors.length > 0) {
+        setFlightTried(true)
+        return
+      }
+      const flightFields = flight?.details && flight.core ? { details: flight.details, ...flight.core } : null
       const currencyChanged = currency.toUpperCase() !== (booking.currency ?? '')
       const noLongerPaid = booking.payment_status === 'paid' && paymentStatus !== 'paid'
       // A previously-locked FX rate only makes sense for the currency it
@@ -111,6 +134,7 @@ export default function EditBooking() {
         end_date: endDate || null,
         start_time: startTime || null,
         end_time: endTime || null,
+        ...(flightFields ?? {}),
         cost: cost === '' ? null : Number(cost),
         currency: currency.trim() ? currency.trim().toUpperCase() : null,
         payment_status: paymentStatus,
@@ -130,6 +154,18 @@ export default function EditBooking() {
       setSaving(false)
     }
   }
+
+  // While a flight has legs in the editor, its dates and times come from them.
+  const flightPreview = flightForm && flightForm.legs.length > 0 ? buildFlightDetails(flightForm) : null
+  const flightErrors = flightTried && flightForm ? buildFlightDetails(flightForm).errors : []
+  const legsDrive = flightForm != null && flightForm.legs.length > 0
+  const derivedDatesText = (() => {
+    const c = flightPreview?.core
+    if (!c) return 'will be set when the legs are complete'
+    const a = `${formatDate(c.start_date)}${c.start_time ? ` ${formatTime(c.start_time)}` : ''}`
+    const e = c.end_date ? `${formatDate(c.end_date)}${c.end_time ? ` ${formatTime(c.end_time)}` : ''}` : ''
+    return e && e !== a ? `${a} – ${e}` : a
+  })()
 
   if (!bookingId) {
     return <p className="p-4 text-sm text-stone-500">No booking specified.</p>
@@ -171,47 +207,64 @@ export default function EditBooking() {
 
         <AddressField pin={pin} />
 
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <label className="mb-1 block text-sm font-medium text-stone-600">Start date</label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full rounded-xl border border-stone-200 px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-            />
-          </div>
-          <div className="w-32">
-            <label className="mb-1 block text-sm font-medium text-stone-600">Time</label>
-            <input
-              type="time"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              className="w-full rounded-xl border border-stone-200 px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-            />
-          </div>
-        </div>
+        {flightForm && (
+          <FlightLegsEditor
+            form={flightForm}
+            onChange={setFlightForm}
+            showMissing={flightTried}
+          />
+        )}
 
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <label className="mb-1 block text-sm font-medium text-stone-600">End date</label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full rounded-xl border border-stone-200 px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-            />
+        {legsDrive ? (
+          <p className="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">
+            <span className="text-stone-400">Booking dates (from the legs)</span>{' '}
+            {derivedDatesText}
+          </p>
+        ) : (
+          <>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="mb-1 block text-sm font-medium text-stone-600">Start date</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full rounded-xl border border-stone-200 px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+              />
+            </div>
+            <div className="w-32">
+              <label className="mb-1 block text-sm font-medium text-stone-600">Time</label>
+              <input
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className="w-full rounded-xl border border-stone-200 px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+              />
+            </div>
           </div>
-          <div className="w-32">
-            <label className="mb-1 block text-sm font-medium text-stone-600">Time</label>
-            <input
-              type="time"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              className="w-full rounded-xl border border-stone-200 px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-            />
+
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="mb-1 block text-sm font-medium text-stone-600">End date</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full rounded-xl border border-stone-200 px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+              />
+            </div>
+            <div className="w-32">
+              <label className="mb-1 block text-sm font-medium text-stone-600">Time</label>
+              <input
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                className="w-full rounded-xl border border-stone-200 px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+              />
+            </div>
           </div>
-        </div>
+          </>
+        )}
 
         <div className="flex gap-3">
           <div className="flex-1">
@@ -329,6 +382,14 @@ export default function EditBooking() {
               </button>
             </div>
           </div>
+        )}
+
+        {flightErrors.length > 0 && (
+          <ul className="space-y-1 rounded-xl bg-red-50 p-3 text-sm text-red-700">
+            {flightErrors.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
         )}
 
         {error && (

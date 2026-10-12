@@ -107,11 +107,13 @@ $SrcFileMap = @{
     # Booking types (Missing Features #83)
     'BookingTypeBody.tsx' = 'components\BookingTypeBody.tsx'
     'ExcursionsTotal.tsx' = 'components\ExcursionsTotal.tsx'
+    'FlightLegsEditor.tsx' = 'components\FlightLegsEditor.tsx'
     'registry.ts'         = 'lib\bookingTypes\registry.ts'
     'segment.ts'          = 'lib\bookingTypes\segment.ts'
     'airports.ts'         = 'lib\bookingTypes\airports.ts'
     'fields.ts'           = 'lib\bookingTypes\fields.ts'
     'flight.ts'           = 'lib\bookingTypes\flight.ts'
+    'flightForm.ts'       = 'lib\bookingTypes\flightForm.ts'
     'hotel.ts'            = 'lib\bookingTypes\hotel.ts'
     'cruise.ts'           = 'lib\bookingTypes\cruise.ts'
     'carHire.ts'          = 'lib\bookingTypes\carHire.ts'
