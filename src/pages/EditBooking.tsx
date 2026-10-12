@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { getBooking, getChildBookings, getTrip, updateBooking } from '../lib/api'
+import { fetchBookings, getBooking, getChildBookings, getTrip, updateBooking } from '../lib/api'
 import type { Booking, PaymentStatus } from '../lib/types'
 import { formatDate, formatMoney, formatTime } from '../lib/format'
 import { PaymentBadge } from '../components/PaymentBadge'
@@ -10,6 +10,7 @@ import { CurrencyQuickPicks } from '../components/CurrencyQuickPicks'
 import { AddressField } from '../components/AddressField'
 import { useAddressPin } from '../lib/useAddressPin'
 import { FlightLegsEditor } from '../components/FlightLegsEditor'
+import { childOutsideParentDates } from '../lib/bookingTypes/nesting'
 import { TypeFieldsForm } from '../components/TypeFieldsForm'
 import { BOOKING_TYPE_OPTIONS, bookingTypeLabel } from '../lib/bookingTypes/registry'
 import { buildFlatDetails, flatFormErrors, flatFormFromDetails, typeFormSpec } from '../lib/bookingTypes/typeForm'
@@ -44,6 +45,12 @@ export default function EditBooking() {
   // The booking type, and (for hotel and car hire) the form for its type-specific details.
   const [type, setType] = useState('')
   const [flatForm, setFlatForm] = useState<FlatFormState | null>(null)
+  // "Part of": the parent booking (a cruise for an excursion). Only top-level bookings can be parents,
+  // and a booking that already has children cannot become a child (design decision 8).
+  const [parentId, setParentId] = useState('')
+  const [parentChoices, setParentChoices] = useState<Booking[] | null>(null)
+  const [childCount, setChildCount] = useState(0)
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
   // Set by a failed save: from then on the missing fields are shown live, all at once.
   const [flightTried, setFlightTried] = useState(false)
   // Same for the hotel, car hire, cruise... forms (an extra with a bad currency, say).
@@ -71,6 +78,13 @@ export default function EditBooking() {
       setExtractedDetails(b.extracted_details ?? '')
       setNotes(b.notes ?? '')
       setType(b.type ?? '')
+      setParentId(b.parent_booking_id ?? '')
+      Promise.all([fetchBookings(b.trip_id), getChildBookings(b.id)])
+        .then(([all, kids]) => {
+          setParentChoices(all.filter((x) => x.id !== b.id && x.parent_booking_id == null))
+          setChildCount(kids.length)
+        })
+        .catch(() => setParentChoices([]))
       setFlightForm(b.type === 'flight' ? flightFormFromDetails(b.details) : null)
       const spec = typeFormSpec(b.type)
       setFlatForm(spec ? flatFormFromDetails(spec, b.details) : null)
@@ -114,6 +128,7 @@ export default function EditBooking() {
     if (cancelled && !booking.cancelled) {
       setSaving(true)
       setError(false)
+      setSaveMessage(null)
       try {
         const kids = (await getChildBookings(booking.id)).filter((k) => !k.cancelled)
         if (kids.length > 0) {
@@ -136,6 +151,7 @@ export default function EditBooking() {
     setPendingChildren(null)
     setSaving(true)
     setError(false)
+    setSaveMessage(null)
     try {
       const addressFields = await pin.resolveForSave()
       if (!addressFields) return
@@ -167,6 +183,8 @@ export default function EditBooking() {
         start_time: startTime || null,
         end_time: endTime || null,
         type: type || null,
+        // Only sent when it changed, so ordinary edits never touch the nesting guard in the database.
+        ...(parentId !== (booking.parent_booking_id ?? '') ? { parent_booking_id: parentId || null } : {}),
         ...(flightFields ?? flatFields ?? {}),
         cost: cost === '' ? null : Number(cost),
         currency: currency.trim() ? currency.trim().toUpperCase() : null,
@@ -181,8 +199,11 @@ export default function EditBooking() {
         await updateBooking(kid.id, { cancelled: true })
       }
       navigate(tripId ? `/trips/${tripId}?tab=bookings&highlight=${booking.id}` : '/')
-    } catch {
-      setError(true)
+    } catch (err) {
+      // The database refuses deeper nesting (booking_depth_one_guard); say so instead of "check your connection".
+      const msg = err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : ''
+      if (/nesting|own parent/i.test(msg)) setSaveMessage(msg)
+      else setError(true)
     } finally {
       setSaving(false)
     }
@@ -190,6 +211,54 @@ export default function EditBooking() {
 
   // While a flight has legs in the editor, its dates and times come from them.
   const flightPreview = flightForm && flightForm.legs.length > 0 ? buildFlightDetails(flightForm) : null
+  // The "Part of" picker. Only top-level bookings are offered; a booking with children cannot be linked under another.
+  const currentParent = parentChoices?.find((p) => p.id === parentId) ?? null
+  const outsideParent =
+    booking && currentParent
+      ? childOutsideParentDates({ ...booking, start_date: startDate || null, end_date: endDate || null }, currentParent)
+      : false
+  const parentPicker = (
+    <div>
+      <label className="mb-1 block text-sm font-medium text-stone-600">
+        Part of <span className="text-stone-400">(for example an excursion on a cruise)</span>
+      </label>
+      {childCount > 0 ? (
+        <p className="rounded-xl bg-stone-50 p-3 text-sm text-stone-500">
+          This booking has {childCount === 1 ? 'a linked booking' : `${childCount} linked bookings`} under it, so it can't be linked
+          under another booking. (Only one level is allowed.)
+        </p>
+      ) : parentChoices == null ? (
+        <p className="text-sm text-stone-400">Loading bookings…</p>
+      ) : (
+        <>
+          <select
+            value={parentId}
+            onChange={(e) => setParentId(e.target.value)}
+            className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5"
+          >
+            <option value="">None (a booking in its own right)</option>
+            {parentChoices
+              .slice()
+              .sort((a, b) => (a.start_date ?? '').localeCompare(b.start_date ?? ''))
+              .map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.provider_name}
+                  {p.start_date ? ` · ${formatDate(p.start_date)}` : ''}
+                  {p.cancelled ? ' (cancelled)' : ''}
+                </option>
+              ))}
+            {parentId && !currentParent && <option value={parentId}>(linked booking not found in this trip)</option>}
+          </select>
+          {outsideParent && (
+            <p className="mt-1.5 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">
+              These dates fall outside the dates of the booking it is part of. That is allowed (a transfer can fall a day either side),
+              just worth a look.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  )
   const flatSpecNow = typeFormSpec(type)
   const flatErrors = flatTried && flatSpecNow && flatForm ? flatFormErrors(flatSpecNow, flatForm) : []
   const flightErrors = flightTried && flightForm ? buildFlightDetails(flightForm).errors : []
@@ -261,6 +330,8 @@ export default function EditBooking() {
           )}
           {typeChangeNote && <p className="mt-1.5 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">{typeChangeNote}</p>}
         </div>
+
+        {parentPicker}
 
         <div>
           <label className="mb-1 block text-sm font-medium text-stone-600">Confirmation reference</label>
@@ -469,6 +540,8 @@ export default function EditBooking() {
             ))}
           </ul>
         )}
+
+        {saveMessage && <p className="text-sm text-red-500">Couldn't save: {saveMessage}.</p>}
 
         {error && (
           <p className="text-sm text-red-500">Couldn't save — check your connection and try again.</p>
