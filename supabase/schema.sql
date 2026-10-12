@@ -13,7 +13,7 @@
 --      grants them automatically).
 --   3. Regenerate this file:  node scripts/gen-schema.mjs
 --
--- Current schema_version: 7
+-- Current schema_version: 8
 -- Safe to run against an empty Supabase project (idempotent). Row data is not in this
 -- file: restore it from a backup dump (docs/backup-and-restore.md).
 
@@ -449,5 +449,6 @@ insert into public.schema_version (version, description, applied_at) values
   (4, 'Booking types phase 1: booking.type, details (jsonb), parent_booking_id with depth-one guard; type backfilled', '2026-10-11T16:20:02.159840Z'::timestamptz),
   (5, 'Booking types phase 2: details (legs, passengers) filled for the 7 flight bookings', '2026-10-11T18:32:45.817421Z'::timestamptz),
   (6, 'Booking types phase 3: details filled for hotel, car hire, cruise and excursion bookings; Vietnam tours linked to the Celebrity Solstice', '2026-10-11T19:59:08.334820Z'::timestamptz),
-  (7, 'Booking types phase 3 follow-up: Volendam embark/departure times; Alagon hotel linked to the Solstice', '2026-10-11T20:59:50.832677Z'::timestamptz)
+  (7, 'Booking types phase 3 follow-up: Volendam embark/departure times; Alagon hotel linked to the Solstice', '2026-10-11T20:59:50.832677Z'::timestamptz),
+  (8, 'Booking types phase 5: flight details filled from confirmations, easyJet seat names, BA2640/41 e-tickets, package details', '2026-10-12T16:39:31.190011Z'::timestamptz)
 on conflict (version) do nothing;
