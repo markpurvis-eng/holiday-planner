@@ -125,6 +125,19 @@ const REGISTRY: Record<string, TypeDef> = {
   },
 }
 
+// The types offered in the Edit Booking type selector (design decision 2). `other`
+// is the package type and has no layout yet. A type not in this list that is
+// already stored on a booking is kept and offered by the selector as it is.
+export const BOOKING_TYPE_OPTIONS: { value: string; label: string }[] = [
+  ...Object.entries(REGISTRY).map(([value, d]) => ({ value, label: d.label })),
+  { value: 'other', label: 'Other / package' },
+]
+
+export function bookingTypeLabel(type: string | null | undefined): string {
+  if (!type) return 'None'
+  return BOOKING_TYPE_OPTIONS.find((o) => o.value === type)?.label ?? type
+}
+
 function def(b: Booking): TypeDef | null {
   return b.type ? (REGISTRY[b.type] ?? null) : null
 }

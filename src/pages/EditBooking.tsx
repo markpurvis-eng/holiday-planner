@@ -10,6 +10,10 @@ import { CurrencyQuickPicks } from '../components/CurrencyQuickPicks'
 import { AddressField } from '../components/AddressField'
 import { useAddressPin } from '../lib/useAddressPin'
 import { FlightLegsEditor } from '../components/FlightLegsEditor'
+import { TypeFieldsForm } from '../components/TypeFieldsForm'
+import { BOOKING_TYPE_OPTIONS, bookingTypeLabel } from '../lib/bookingTypes/registry'
+import { buildFlatDetails, flatFormFromDetails, typeFormSpec } from '../lib/bookingTypes/typeForm'
+import type { FlatFormState } from '../lib/bookingTypes/typeForm'
 import { buildFlightDetails, flightFormFromDetails } from '../lib/bookingTypes/flightForm'
 import type { FlightForm } from '../lib/bookingTypes/flightForm'
 
@@ -37,6 +41,9 @@ export default function EditBooking() {
   const [error, setError] = useState(false)
   // Flight bookings edit their legs here; the core dates are derived from them on save.
   const [flightForm, setFlightForm] = useState<FlightForm | null>(null)
+  // The booking type, and (for hotel and car hire) the form for its type-specific details.
+  const [type, setType] = useState('')
+  const [flatForm, setFlatForm] = useState<FlatFormState | null>(null)
   // Set by a failed save: from then on the missing fields are shown live, all at once.
   const [flightTried, setFlightTried] = useState(false)
   // Set when cancelling a booking that has children: the save waits for the choice below.
@@ -61,13 +68,28 @@ export default function EditBooking() {
       setCancelled(b.cancelled)
       setExtractedDetails(b.extracted_details ?? '')
       setNotes(b.notes ?? '')
+      setType(b.type ?? '')
       setFlightForm(b.type === 'flight' ? flightFormFromDetails(b.details) : null)
+      const spec = typeFormSpec(b.type)
+      setFlatForm(spec ? flatFormFromDetails(spec, b.details) : null)
       loadPin({ address: b.address, pin_lat: b.pin_lat, pin_lng: b.pin_lng })
     })
     if (tripId) {
       getTrip(tripId).then((t) => setTripLocked(t?.total_cost_locked_at != null))
     }
   }, [bookingId, tripId, loadPin])
+
+  // Switching type starts the new type's form from scratch (its fields are not the old
+  // type's), unless it is switched back to the stored type, which restores the stored details.
+  function changeType(next: string) {
+    if (!booking) return
+    setType(next)
+    setFlightTried(false)
+    const src = next === (booking.type ?? '') ? booking.details : null
+    setFlightForm(next === 'flight' ? flightFormFromDetails(src) : null)
+    const spec = typeFormSpec(next)
+    setFlatForm(spec ? flatFormFromDetails(spec, src) : null)
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -118,6 +140,8 @@ export default function EditBooking() {
         return
       }
       const flightFields = flight?.details && flight.core ? { details: flight.details, ...flight.core } : null
+      const flatSpec = typeFormSpec(type)
+      const flatFields = flatSpec && flatForm ? { details: buildFlatDetails(flatSpec, flatForm) } : null
       const currencyChanged = currency.toUpperCase() !== (booking.currency ?? '')
       const noLongerPaid = booking.payment_status === 'paid' && paymentStatus !== 'paid'
       // A previously-locked FX rate only makes sense for the currency it
@@ -134,7 +158,8 @@ export default function EditBooking() {
         end_date: endDate || null,
         start_time: startTime || null,
         end_time: endTime || null,
-        ...(flightFields ?? {}),
+        type: type || null,
+        ...(flightFields ?? flatFields ?? {}),
         cost: cost === '' ? null : Number(cost),
         currency: currency.trim() ? currency.trim().toUpperCase() : null,
         payment_status: paymentStatus,
@@ -158,6 +183,16 @@ export default function EditBooking() {
   // While a flight has legs in the editor, its dates and times come from them.
   const flightPreview = flightForm && flightForm.legs.length > 0 ? buildFlightDetails(flightForm) : null
   const flightErrors = flightTried && flightForm ? buildFlightDetails(flightForm).errors : []
+  const typeChangeNote = (() => {
+    if (!booking || type === (booking.type ?? '')) return null
+    const hasOld = booking.details != null && Object.keys(booking.details).length > 0
+    if (!hasOld) return null
+    const from = bookingTypeLabel(booking.type)
+    const replaces = type === 'flight' || typeFormSpec(type) != null
+    return replaces
+      ? `Changing from ${from} to ${bookingTypeLabel(type)}: the ${from} details are replaced when you save. Change it back to keep them.`
+      : `${bookingTypeLabel(type)} has no form yet, so the ${from} details are kept as they are but not shown.`
+  })()
   const legsDrive = flightForm != null && flightForm.legs.length > 0
   const derivedDatesText = (() => {
     const c = flightPreview?.core
@@ -197,6 +232,24 @@ export default function EditBooking() {
         </div>
 
         <div>
+          <label className="mb-1 block text-sm font-medium text-stone-600">Type</label>
+          <select
+            value={type}
+            onChange={(e) => changeType(e.target.value)}
+            className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5"
+          >
+            <option value="">None</option>
+            {BOOKING_TYPE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+            {type && !BOOKING_TYPE_OPTIONS.some((o) => o.value === type) && <option value={type}>{type}</option>}
+          </select>
+          {typeChangeNote && <p className="mt-1.5 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">{typeChangeNote}</p>}
+        </div>
+
+        <div>
           <label className="mb-1 block text-sm font-medium text-stone-600">Confirmation reference</label>
           <input
             value={confirmationRef}
@@ -206,6 +259,10 @@ export default function EditBooking() {
         </div>
 
         <AddressField pin={pin} />
+
+        {flatForm && typeFormSpec(type) && (
+          <TypeFieldsForm title={bookingTypeLabel(type)} spec={typeFormSpec(type)!} state={flatForm} onChange={setFlatForm} />
+        )}
 
         {flightForm && (
           <FlightLegsEditor
