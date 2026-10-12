@@ -169,7 +169,7 @@ export function FlightLegsEditor({
                   onChange={(e) =>
                     patch(i, { seats: leg.seats.map((x, xi) => (xi === si ? { ...x, passenger: e.target.value } : x)) })
                   }
-                  className={`${inputClass} flex-1`}
+                  className={`${inputClass} min-w-0 flex-1`}
                 />
                 <input
                   value={s.seat}
@@ -179,7 +179,7 @@ export function FlightLegsEditor({
                       seats: leg.seats.map((x, xi) => (xi === si ? { ...x, seat: e.target.value.toUpperCase() } : x)),
                     })
                   }
-                  className={`${inputClass} w-24 uppercase`}
+                  className={`${inputClass.replace('w-full', 'w-24 shrink-0')} uppercase`}
                 />
                 <button
                   type="button"
