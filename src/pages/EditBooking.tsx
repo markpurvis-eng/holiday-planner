@@ -12,7 +12,7 @@ import { useAddressPin } from '../lib/useAddressPin'
 import { FlightLegsEditor } from '../components/FlightLegsEditor'
 import { TypeFieldsForm } from '../components/TypeFieldsForm'
 import { BOOKING_TYPE_OPTIONS, bookingTypeLabel } from '../lib/bookingTypes/registry'
-import { buildFlatDetails, flatFormFromDetails, typeFormSpec } from '../lib/bookingTypes/typeForm'
+import { buildFlatDetails, flatFormErrors, flatFormFromDetails, typeFormSpec } from '../lib/bookingTypes/typeForm'
 import type { FlatFormState } from '../lib/bookingTypes/typeForm'
 import { buildFlightDetails, flightFormFromDetails } from '../lib/bookingTypes/flightForm'
 import type { FlightForm } from '../lib/bookingTypes/flightForm'
@@ -46,6 +46,8 @@ export default function EditBooking() {
   const [flatForm, setFlatForm] = useState<FlatFormState | null>(null)
   // Set by a failed save: from then on the missing fields are shown live, all at once.
   const [flightTried, setFlightTried] = useState(false)
+  // Same for the hotel, car hire, cruise... forms (an extra with a bad currency, say).
+  const [flatTried, setFlatTried] = useState(false)
   // Set when cancelling a booking that has children: the save waits for the choice below.
   const [pendingChildren, setPendingChildren] = useState<Booking[] | null>(null)
   const pin = useAddressPin(null)
@@ -85,6 +87,7 @@ export default function EditBooking() {
     if (!booking) return
     setType(next)
     setFlightTried(false)
+    setFlatTried(false)
     const src = next === (booking.type ?? '') ? booking.details : null
     setFlightForm(next === 'flight' ? flightFormFromDetails(src) : null)
     const spec = typeFormSpec(next)
@@ -99,6 +102,11 @@ export default function EditBooking() {
         setFlightTried(true)
         return
       }
+    }
+    const spec = typeFormSpec(type)
+    if (spec && flatForm && flatFormErrors(spec, flatForm).length > 0) {
+      setFlatTried(true)
+      return
     }
     // Cancelling a parent (a cruise with excursions) asks what to do with its
     // children instead of cascading silently: an independent operator's
@@ -182,6 +190,8 @@ export default function EditBooking() {
 
   // While a flight has legs in the editor, its dates and times come from them.
   const flightPreview = flightForm && flightForm.legs.length > 0 ? buildFlightDetails(flightForm) : null
+  const flatSpecNow = typeFormSpec(type)
+  const flatErrors = flatTried && flatSpecNow && flatForm ? flatFormErrors(flatSpecNow, flatForm) : []
   const flightErrors = flightTried && flightForm ? buildFlightDetails(flightForm).errors : []
   const typeChangeNote = (() => {
     if (!booking || type === (booking.type ?? '')) return null
@@ -246,6 +256,9 @@ export default function EditBooking() {
             ))}
             {type && !BOOKING_TYPE_OPTIONS.some((o) => o.value === type) && <option value={type}>{type}</option>}
           </select>
+          {type === 'other' && (
+            <p className="mt-1.5 text-xs text-stone-500">Packages have no type form yet; any details already stored are left as they are.</p>
+          )}
           {typeChangeNote && <p className="mt-1.5 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">{typeChangeNote}</p>}
         </div>
 
@@ -439,6 +452,14 @@ export default function EditBooking() {
               </button>
             </div>
           </div>
+        )}
+
+        {flatErrors.length > 0 && (
+          <ul className="space-y-1 rounded-xl bg-red-50 p-3 text-sm text-red-700">
+            {flatErrors.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
         )}
 
         {flightErrors.length > 0 && (
