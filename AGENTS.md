@@ -18,6 +18,9 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
 - `src/lib/` — `supabaseClient.ts` (client init), `auth.tsx` (AuthContext +
   ProtectedRoute), `types.ts` (data model types), `api.ts` (CRUD helpers per table),
   `format.ts` (currency formatting — see "Currency-aware money display" below)
+- `src/lib/bookingTypes/` — the booking-type registry and per-type parsers, headlines,
+  timeline entries and edit-form definitions (see "Booking types and `details`" at the end
+  of this file)
 - `src/pages/` — one file per route: Login, Dashboard, TripDetail, Upload, AddLink,
   Settings
 - `src/components/` — shared presentational pieces: TripCard, BottomNav, TabBar,
@@ -975,7 +978,9 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
      anywhere else in Drive is invisible to the migration (the service account only sees
      that folder). It must be an uploaded file (PDF, image, Word, text), not a Google Doc
      or Sheet, and 40 MB or smaller.
-  2. Create or update the booking/itinerary item as usual, then insert the `document` row:
+  2. Create or update the booking/itinerary item as usual (for a booking, follow "Booking
+     types and `details`" below: set `type` and `details`, and never write `notes`), then
+     insert the `document` row:
      `type`, a clean `title` (the Drive file name is usually different and ugly), `note`,
      the most specific of `booking_id` / `itinerary_item_id` (else `trip_id`),
      `file_url` = `https://drive.google.com/file/d/<id>/view`, `drive_file_id` = `<id>`.
@@ -1020,6 +1025,103 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   `gmail attachments` (or a subfolder), and trashes it (recoverable for 30 days). Mark can
   also ask for it in any session ("tidy the migrated Drive files"): do exactly the same.
   Never trash a Drive file whose row has no `migrated_at`, and never delete one permanently.
+
+- **Booking types and `details` (Missing Features #83; schema in phase 1, app v1.40.0 to
+  v1.44.0).** A booking has a `type`, a `details` JSON object with the type-specific fields,
+  and an optional `parent_booking_id`. The registry in `src/lib/bookingTypes/` owns the valid
+  values and the field lists; the full design is in `Holiday_App_Booking_Types_Design.md` in
+  the Project. **Claude's part, whenever a booking is created or updated from an email,
+  confirmation or document (the Drive/Gmail ingestion procedure above included):**
+  1. **Always set `type`**: `flight`, `cruise`, `hotel`, `car_hire`, `excursion`, `transfer`
+     or `other` (`other` is the package type: set the type, leave `details` null). Do not
+     invent other values; an unknown type is shown with today's generic card, which is safe,
+     but the Edit Booking screen only offers these seven.
+  2. **Set `details` for the six typed kinds**, as a JSON object with `"v": 1` and only the
+     keys below (all optional text unless noted; leave a key out rather than writing an empty
+     string). A booking whose `details` is just `{"v": 1}` is valid. Malformed or unreadable
+     `details` makes the card fall back to the generic layout, so check the JSON before
+     writing it.
+     - `flight`: `legs` (array, at least one), `passengers` (array of `{name, eticket}`), and
+       `leg_seq` (number). Each leg: `id`, `from` and `to` (3-letter IATA codes), `dep_date`
+       (YYYY-MM-DD) are required; optional `airline`, `flight_number`, `operated_by`,
+       `from_terminal`, `to_terminal`, `dep_time`, `arr_date`, `arr_time` (HH:MM, local to
+       that airport), `seats` (array of `{passenger, seat}`), `cabin`, `baggage`, `aircraft`,
+       `duration`. Add a row to `src/lib/bookingTypes/airports.ts` for a new airport (an
+       unknown code only loses the home-time label). One booking per flight purchase; outward
+       and return are two legs of the same booking when bought together.
+     - **Leg ids:** `l1`, `l2`, ... stable within the booking and never reused. `leg_seq` is
+       the highest number ever handed out. A new leg takes `leg_seq` + 1 and `leg_seq` is
+       raised to match; removing a leg never lowers it.
+     - `hotel`: `room_type`, `board_basis`, `guests`, `phone`, `parking`, `cancel_by`
+       (YYYY-MM-DD or text), `cancellation`.
+     - `cruise`: `cruise_line`, `ship`, `voyage`, `cabin`, `category`, `deck`, `dining`,
+       `embark_port`, `embark_terminal`, `embark_time` (boarding), `departure_time` (when the
+       ship sails), `disembark_port`, `disembark_terminal`, `disembark_time`, `muster`, and
+       `extras` (array of `{name, paid (boolean), cost (number), currency (3 letters)}`).
+       The three time keys are display only: the Itinerary uses the core date and time columns.
+     - `car_hire`: `supplier`, `pickup_location`, **`return_location`**, `car_class`,
+       `fuel_policy`, `excess`, `insurance`, `registration`, `phone`, `mileage`, `cancel_by`,
+       `drivers` (array of text). The key is `return_location`, not a "drop" spelling.
+     - `excursion`: `operator`, `meeting_point`, `duration`, `tickets`, `guide_contact`,
+       `bring`, `cancel_by`.
+     - `transfer`: `from`, `to`, `pickup_point`, `flight_to_track`, `driver_contact`,
+       `vehicle`, `cancel_by`.
+  3. **Core columns still matter and are still filled** (`provider_name`, `confirmation_ref`,
+     dates and times, `cost`, `currency`, `payment_status`, address and pin as before). For
+     every type except `flight`, the core `start_date`, `end_date`, `start_time` and
+     `end_time` are the source for the Itinerary entries (check-in and check-out, embark and
+     disembark, pick-up and return, the single excursion or transfer entry). For a `flight`
+     they are **derived from the legs**, the same way `deriveFlightCore` does when the app
+     saves: `start_date` = first leg `dep_date`, `start_time` = first leg `dep_time`,
+     `end_date` = last leg `arr_date` (or its `dep_date` when no arrival date is known),
+     `end_time` = last leg `arr_time`. Times are local wall-clock values, with no timezone.
+  4. **Keep secrets out of `details`.** Card numbers, loyalty and Mariner/Captain's Club IDs,
+     insurance policy numbers, lockbox and door codes and passwords stay out of `details` and
+     out of the Itinerary's shared PDF; if they matter at all they go in `extracted_details`
+     only, as before.
+  5. **`notes` is Mark's and is never written by ingestion.** Do not set it on insert and do
+     not overwrite it on update. Freshly extracted text goes in `extracted_details` (replace
+     it there if it is being re-extracted, as before), and the structured fields go in
+     `details`.
+  6. **Updating an existing booking:** never replace `details` wholesale from a partial
+     read. Merge into it (`details = details || '{...}'::jsonb`, or `jsonb_set` for one
+     key), keep every existing leg `id`, and for a bulk fill only touch rows where `details
+     is null`. Read the row first, because the edit screens write `details` too and Mark's
+     own edits must win. Do not change `type` on a booking that already has `details` without
+     telling Mark: the edit screen warns for the same reason.
+  7. **Nesting (depth one).** An excursion taken during a cruise, or a stay taken on one of
+     its port days, is a child: set `parent_booking_id` to the cruise's id. Children keep
+     their own cost, currency and payment status (the cruise card's "Excursions & stays"
+     figure is display only and nothing is rolled up); cancelling a parent prompts about its
+     children in the app. The trigger `booking_depth_one_guard` rejects a booking as its own
+     parent, a parent that is itself a child, and a booking that already has children
+     becoming a child, so a bad write fails loudly rather than creating a grandchild. A
+     transfer that is included in a stay gets a `transfer` booking with `cost` null (not 0),
+     so it appears on the Bookings tab and Itinerary but not in Costs.
+  8. **Database changes follow the standing workflow.** A data fill (including a new
+     booking's `details`) is a database change: say so first, Mark runs `go backup hpa
+     pre-v<N>` and confirms, then `apply_migration` with `create or replace` / `if not
+     exists` / `where details is null` guards, and the same SQL is saved as
+     `supabase/migrations/<14-digit version>_<name>.sql` with its own `schema_version`
+     row. A plain single new booking from an email is an ordinary insert and needs no
+     migration file, but still tell Mark what you are about to write. Avoid the words
+     "drop" and "delete" in SQL text (statements containing them have come back "cancelled" in
+     some sessions); if one is genuinely needed, give Mark the SQL separately to run himself.
+  9. **Check what you wrote:** select the row back and confirm `type`, `details->>'v'` = `1`,
+     that every flight leg has `id`, `from`, `to` and `dep_date`, and that the core columns
+     match the legs. Parsing never throws, so a typo shows up only as a booking that still
+     has the generic card.
+  **Edit Booking** (`src/pages/EditBooking.tsx`) writes the same fields: a Type selector;
+  for `flight` a leg editor (`FlightLegsEditor.tsx`, state in `flightForm.ts`) that adds,
+  removes and reorders legs and derives the core dates on save; for the other typed kinds a
+  form drawn from the field lists in `typeForm.ts` (`TypeFieldsForm.tsx`); and a "Part of"
+  picker that lists only top-level bookings and is disabled for a booking that has children.
+  The forms keep keys they do not know about, leave empty fields out, and warn (never block)
+  on date oddities. Unknown types and malformed `details` always fall back to the generic
+  card and begin/end markers. **Not built yet:** type layouts for itinerary items (decided
+  out for now, 11 Oct 2026), and phase 5, a reviewed one-off parse of the existing
+  `extracted_details` free text into `details` for the bookings and the three packages
+  (`other`) that still have none.
 
 ## Issue tracking docs (split 8 Oct 2026)
 
