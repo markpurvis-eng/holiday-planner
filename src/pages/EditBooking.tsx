@@ -325,9 +325,6 @@ export default function EditBooking() {
             ))}
             {type && !BOOKING_TYPE_OPTIONS.some((o) => o.value === type) && <option value={type}>{type}</option>}
           </select>
-          {type === 'other' && (
-            <p className="mt-1.5 text-xs text-stone-500">Packages have no type form yet; any details already stored are left as they are.</p>
-          )}
           {typeChangeNote && <p className="mt-1.5 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">{typeChangeNote}</p>}
         </div>
 

@@ -1027,13 +1027,13 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   Never trash a Drive file whose row has no `migrated_at`, and never delete one permanently.
 
 - **Booking types and `details` (Missing Features #83; schema in phase 1, app v1.40.0 to
-  v1.44.0).** A booking has a `type`, a `details` JSON object with the type-specific fields,
+  v1.45.0).** A booking has a `type`, a `details` JSON object with the type-specific fields,
   and an optional `parent_booking_id`. The registry in `src/lib/bookingTypes/` owns the valid
   values and the field lists; the full design is in `Holiday_App_Booking_Types_Design.md` in
   the Project. **Claude's part, whenever a booking is created or updated from an email,
   confirmation or document (the Drive/Gmail ingestion procedure above included):**
   1. **Always set `type`**: `flight`, `cruise`, `hotel`, `car_hire`, `excursion`, `transfer`
-     or `other` (`other` is the package type: set the type, leave `details` null). Do not
+     or `other` (`other` is the package type; it has a small free-form `details`, see below). Do not
      invent other values; an unknown type is shown with today's generic card, which is safe,
      but the Edit Booking screen only offers these seven.
   2. **Set `details` for the six typed kinds**, as a JSON object with `"v": 1` and only the
@@ -1066,6 +1066,10 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
        `bring`, `cancel_by`.
      - `transfer`: `from`, `to`, `pickup_point`, `flight_to_track`, `driver_contact`,
        `vehicle`, `cancel_by`.
+     - `other` (package): `supplier`, `accommodation`, `includes` (array of text, one item
+       each), `payments` (text: deposit, balance, due dates; no card or account numbers).
+       Display only; a package keeps the generic begin/end timeline markers and its dates
+       stay in the core columns.
   3. **Core columns still matter and are still filled** (`provider_name`, `confirmation_ref`,
      dates and times, `cost`, `currency`, `payment_status`, address and pin as before). For
      every type except `flight`, the core `start_date`, `end_date`, `start_time` and
@@ -1114,14 +1118,13 @@ Routing is client-side (`react-router-dom`), so `netlify.toml` includes a catch-
   **Edit Booking** (`src/pages/EditBooking.tsx`) writes the same fields: a Type selector;
   for `flight` a leg editor (`FlightLegsEditor.tsx`, state in `flightForm.ts`) that adds,
   removes and reorders legs and derives the core dates on save; for the other typed kinds a
-  form drawn from the field lists in `typeForm.ts` (`TypeFieldsForm.tsx`); and a "Part of"
+  form drawn from the field lists in `typeForm.ts` (`TypeFieldsForm.tsx`), packages included; and a "Part of"
   picker that lists only top-level bookings and is disabled for a booking that has children.
   The forms keep keys they do not know about, leave empty fields out, and warn (never block)
   on date oddities. Unknown types and malformed `details` always fall back to the generic
   card and begin/end markers. **Not built yet:** type layouts for itinerary items (decided
-  out for now, 11 Oct 2026), and phase 5, a reviewed one-off parse of the existing
-  `extracted_details` free text into `details` for the bookings and the three packages
-  (`other`) that still have none.
+  out for now, 11 Oct 2026). Phase 5 (a reviewed one-off parse of the existing
+  `extracted_details` into `details`, and the package layout in v1.45.0) is covered above.
 
 ## Issue tracking docs (split 8 Oct 2026)
 

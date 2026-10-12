@@ -7,6 +7,7 @@ import { hotelBody, hotelHeadline, hotelSegments, parseHotelDetails } from './ho
 import { carHireBody, carHireHeadline, carHireSegments, parseCarHireDetails } from './carHire'
 import { excursionBody, excursionHeadline, excursionSegments, parseExcursionDetails } from './excursion'
 import { parseTransferDetails, transferBody, transferHeadline, transferSegments } from './transfer'
+import { packageBody, packageHeadline, packageSegments, parsePackageDetails } from './package'
 
 // The booking-type registry (Missing Features #83, design decisions 1, 14, 16).
 // Each type declares how its card headline is built, which timeline entries it
@@ -15,7 +16,8 @@ import { parseTransferDetails, transferBody, transferHeadline, transferSegments 
 // usable `details`, so a booking of any type (or an unknown type) falls back to
 // today's generic card and begin/end timeline markers. Flight (phase 2) renders
 // its legs in BookingTypeBody; cruise, hotel, car hire, excursion and transfer
-// (phase 3) render rows. `other` (package) has no layout yet.
+// (phase 3) render rows. `other` (the package type, phase 5) renders rows and
+// keeps the generic begin/end timeline markers.
 type TypeDef = {
   label: string
   icon: string
@@ -123,15 +125,28 @@ const REGISTRY: Record<string, TypeDef> = {
       return d ? transferBody(d) : null
     },
   },
+  other: {
+    label: 'Other / package',
+    icon: '📦',
+    headline(b) {
+      return parsePackageDetails(b.details) ? packageHeadline(b) : null
+    },
+    segments() {
+      return packageSegments()
+    },
+    body(b) {
+      const d = parsePackageDetails(b.details)
+      return d ? packageBody(d) : null
+    },
+  },
 }
 
 // The types offered in the Edit Booking type selector (design decision 2). `other`
-// is the package type and has no layout yet. A type not in this list that is
-// already stored on a booking is kept and offered by the selector as it is.
-export const BOOKING_TYPE_OPTIONS: { value: string; label: string }[] = [
-  ...Object.entries(REGISTRY).map(([value, d]) => ({ value, label: d.label })),
-  { value: 'other', label: 'Other / package' },
-]
+// is the package type. A type not in this list that is already stored on a
+// booking is kept and offered by the selector as it is.
+export const BOOKING_TYPE_OPTIONS: { value: string; label: string }[] = Object.entries(REGISTRY).map(
+  ([value, d]) => ({ value, label: d.label })
+)
 
 export function bookingTypeLabel(type: string | null | undefined): string {
   if (!type) return 'None'

@@ -121,6 +121,7 @@ $SrcFileMap = @{
     'carHire.ts'          = 'lib\bookingTypes\carHire.ts'
     'excursion.ts'        = 'lib\bookingTypes\excursion.ts'
     'transfer.ts'         = 'lib\bookingTypes\transfer.ts'
+    'package.ts'          = 'lib\bookingTypes\package.ts'
     'nesting.ts'          = 'lib\bookingTypes\nesting.ts'
 }
 

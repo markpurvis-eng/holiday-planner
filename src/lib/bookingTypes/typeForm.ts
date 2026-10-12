@@ -1,5 +1,6 @@
 // Edit-form definitions for the flat booking types (Missing Features #83,
-// phase 4): hotel and car hire now, then cruise, excursion and transfer. Each
+// phase 4): hotel, car hire, cruise, excursion and transfer, plus the package
+// type `other` (phase 5). Each
 // type lists its fields once here; the form is drawn from that list
 // (components/TypeFieldsForm.tsx) and saved back as `details` with "v": 1.
 // Field keys must match the type's parser in this folder (hotel.ts, carHire.ts,
@@ -59,6 +60,14 @@ const SPECS: Record<string, TypeFormSpec> = {
       { kind: 'text', key: 'vehicle', label: 'Vehicle' },
       { kind: 'text', key: 'driver_contact', label: 'Driver contact' },
       { kind: 'text', key: 'cancel_by', label: 'Free cancellation until', hint: CANCEL_BY_HINT },
+    ],
+  },
+  other: {
+    fields: [
+      { kind: 'text', key: 'supplier', label: 'Supplier' },
+      { kind: 'text', key: 'accommodation', label: 'Stay', multiline: true, hint: 'hotel or resort the package includes' },
+      { kind: 'list', key: 'includes', label: 'Includes', hint: 'green fees, lessons, transfers...', addLabel: '+ Add item' },
+      { kind: 'text', key: 'payments', label: 'Payments', multiline: true, hint: 'deposit, balance, due dates; no card or account numbers' },
     ],
   },
   hotel: {
