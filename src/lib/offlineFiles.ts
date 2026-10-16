@@ -79,3 +79,18 @@ export async function getCachedFile(url: string): Promise<ArrayBuffer | null> {
     return null
   }
 }
+
+// How many of these files are in the file cache (for the Settings status line).
+export async function countCachedFiles(urls: string[]): Promise<number> {
+  try {
+    if (typeof caches === 'undefined') return 0
+    const cache = await caches.open(FILE_CACHE)
+    let n = 0
+    for (const url of urls) {
+      if (await cache.match(url)) n++
+    }
+    return n
+  } catch {
+    return 0
+  }
+}

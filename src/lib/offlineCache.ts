@@ -1,8 +1,9 @@
 import { fetchTrips, fetchTripBundle } from './api'
 import { parseLocalDate, todayDateString } from './format'
 import type { Trip } from './types'
-import { purgeSnapshots, snapshotKey, writeMeta, writeSnapshot } from './offlineSnapshots'
-import { reconcileFiles } from './offlineFiles'
+import { purgeSnapshots, readMeta, readSnapshot, snapshotKey, writeMeta, writeSnapshot } from './offlineSnapshots'
+import { countCachedFiles, reconcileFiles } from './offlineFiles'
+import type { Document } from './types'
 import { fetchGbpRate } from './fx'
 
 // The offline rule: keep the trip that is under way, from the day before it
@@ -13,6 +14,8 @@ const DAYS_BEFORE = 1
 const DAYS_AFTER = 1
 const MIN_GAP_MS = 3 * 60 * 60 * 1000
 const LAST_SYNC_KEY = 'hp-offline-last-sync'
+
+export type SyncResult = 'ok' | 'offline' | 'failed'
 
 function shiftDate(dateStr: string, days: number): string {
   const d = parseLocalDate(dateStr)
@@ -86,6 +89,75 @@ async function doSync(force: boolean): Promise<void> {
 }
 
 let running: Promise<void> | null = null
+
+// For the Sync now button in Settings: ignores the "synced recently" check and,
+// unlike syncOfflineCache, says how it went. It waits for any sync already in
+// progress first, so two never run at once.
+export async function syncOfflineCacheNow(): Promise<SyncResult> {
+  if (!navigator.onLine) return 'offline'
+  if (running) await running
+  const attempt = doSync(true)
+  running = attempt.catch(() => {}).finally(() => {
+    running = null
+  })
+  try {
+    await attempt
+    return 'ok'
+  } catch {
+    return 'failed'
+  }
+}
+
+export type OfflineTripSummary = {
+  id: string
+  name: string
+  startDate: string
+  endDate: string
+  documents: number
+  documentsCached: number
+}
+
+export type OfflineSummary = {
+  syncedAt: number
+  trips: OfflineTripSummary[]
+  // The next trip that isn't being kept yet, and the date it will be saved from.
+  next: { name: string; startDate: string; savedFrom: string } | null
+}
+
+// What is on the device right now, read from the saved copy itself rather than
+// from the last sync's say-so, so the Settings line shows what would be there
+// with no signal.
+export async function getOfflineSummary(): Promise<OfflineSummary> {
+  const meta = await readMeta()
+  const trips: OfflineTripSummary[] = []
+  for (const id of meta.tripIds) {
+    const trip = await readSnapshot<Trip>(snapshotKey('getTrip', id))
+    if (!trip) continue
+    const docs = await readSnapshot<Document[]>(snapshotKey('getDocuments', id))
+    const urls = (docs?.value ?? []).map((d) => d.file_url).filter((u): u is string => !!u)
+    trips.push({
+      id,
+      name: trip.value.name,
+      startDate: trip.value.start_date,
+      endDate: trip.value.end_date,
+      documents: urls.length,
+      documentsCached: await countCachedFiles(urls),
+    })
+  }
+  const today = todayDateString()
+  const all = (await readSnapshot<Trip[]>('getTrips'))?.value ?? []
+  const kept = new Set(meta.tripIds)
+  const upcoming = all
+    .filter((t) => t.status !== 'cancelled' && !kept.has(t.id) && shiftDate(t.start_date, -DAYS_BEFORE) > today)
+    .sort((a, b) => a.start_date.localeCompare(b.start_date))[0]
+  return {
+    syncedAt: meta.syncedAt,
+    trips,
+    next: upcoming
+      ? { name: upcoming.name, startDate: upcoming.start_date, savedFrom: shiftDate(upcoming.start_date, -DAYS_BEFORE) }
+      : null,
+  }
+}
 
 // Safe to call whenever: it does nothing offline, does nothing again within a
 // few hours on the same day, and never throws. Old data is only removed once

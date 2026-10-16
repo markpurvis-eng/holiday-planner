@@ -94,6 +94,7 @@ $SrcFileMap = @{
     'offlineFiles.ts'     = 'lib\offlineFiles.ts'
     'offlineCache.ts'     = 'lib\offlineCache.ts'
     'OfflineBanner.tsx'   = 'components\OfflineBanner.tsx'
+    'OfflineStatusCard.tsx' = 'components\OfflineStatusCard.tsx'
     'OfflineSync.tsx'     = 'components\OfflineSync.tsx'
     'deploy-claude-files.ps1' = 'deploy-claude-files.ps1'
     'main.tsx'            = 'main.tsx'

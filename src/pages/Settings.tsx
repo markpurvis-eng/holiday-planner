@@ -5,6 +5,7 @@ import type { TripType, Trip } from '../lib/types'
 import { APP_VERSION } from '../lib/version'
 import { getHideCancelledItems, setHideCancelledItems } from '../lib/settings'
 import { generateAndPublishItinerary } from '../lib/shareItinerary'
+import { OfflineStatusCard } from '../components/OfflineStatusCard'
 
 const EMOJI_OPTIONS = ['🚢', '🏖️', '🎒', '🧳', '✈️', '🏔️', '🏕️', '🎡', '🚗', '🏙️']
 
@@ -134,6 +135,13 @@ export default function Settings() {
             className="h-4 w-4 rounded border-stone-300 text-teal-600 focus:ring-teal-500"
           />
         </label>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-stone-400">
+          Offline
+        </h2>
+        <OfflineStatusCard />
       </section>
 
       <section className="mb-8">
