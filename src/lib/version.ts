@@ -2,4 +2,4 @@
 // messages for what changed at each version. This file is the source of
 // truth for the app's current version; nothing else needs to track it.
 //
-export const APP_VERSION = 'v1.47.2'
+export const APP_VERSION = 'v1.48.0'

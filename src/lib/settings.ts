@@ -14,6 +14,30 @@ export function setHideCancelledItems(value: boolean): void {
   localStorage.setItem(HIDE_CANCELLED_KEY, value ? 'true' : 'false')
 }
 
+// Trips whose "move to Past?" launch prompt the user answered "Leave it" to,
+// so Dashboard doesn't ask about the same trip again on this device.
+const ARCHIVE_PROMPT_DISMISSED_KEY = 'holiday-planner:archivePromptDismissed'
+
+export function getArchivePromptDismissed(): Set<string> {
+  try {
+    const raw = localStorage.getItem(ARCHIVE_PROMPT_DISMISSED_KEY)
+    const parsed: unknown = raw ? JSON.parse(raw) : []
+    return new Set(Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [])
+  } catch {
+    return new Set()
+  }
+}
+
+export function dismissArchivePrompt(tripId: string): void {
+  try {
+    const ids = getArchivePromptDismissed()
+    ids.add(tripId)
+    localStorage.setItem(ARCHIVE_PROMPT_DISMISSED_KEY, JSON.stringify([...ids]))
+  } catch {
+    // Storage unavailable: the prompt may reappear next launch; harmless.
+  }
+}
+
 // Remembers the type/currency used on the last new itinerary item added
 // from this device, so the "Add itinerary item" form can default to them.
 // While travelling, adding a run of similar items (several dining stops, a

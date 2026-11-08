@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { getTrips, getBookings, getItinerary, getDocuments, getLinks } from '../lib/api'
+import { getTrips, getBookings, getItinerary, getDocuments, getLinks, updateTrip } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import type { Trip } from '../lib/types'
 import type { TimelineEntry } from '../lib/itineraryTimeline'
@@ -8,9 +8,20 @@ import { findNextUp } from '../lib/nextUp'
 import { TripCard, type TripAttachmentCounts } from '../components/TripCard'
 import { NextUpCard } from '../components/NextUpCard'
 import { LoadingSpinner } from '../components/LoadingSpinner'
-import { LongPressMenu } from '../components/LongPressMenu'
+import { LongPressMenu, type LongPressAction } from '../components/LongPressMenu'
 import { DeleteTripDialog } from '../components/DeleteTripDialog'
-import { getYear, todayDateString } from '../lib/format'
+import { getYear, todayDateString, daysUntil, formatDate } from '../lib/format'
+import { getArchivePromptDismissed, dismissArchivePrompt } from '../lib/settings'
+
+// A trip that ended more than this many days ago but is still listed under
+// Active & Upcoming gets a launch prompt offering to move it to Past.
+const ARCHIVE_PROMPT_AFTER_DAYS = 7
+
+// Decided by end_date, not the stored `status` column, which lags behind
+// (same reasoning as Fixed #18).
+function hasEnded(trip: Trip): boolean {
+  return daysUntil(trip.end_date) < 0
+}
 
 function YearDivider({ year }: { year: number }) {
   return (
@@ -29,10 +40,12 @@ function TripListWithYearDividers({
   trips,
   attachmentCounts,
   onDelete,
+  extraActions,
 }: {
   trips: Trip[]
   attachmentCounts: Map<string, TripAttachmentCounts>
   onDelete: (trip: Trip) => void
+  extraActions?: (trip: Trip) => LongPressAction[]
 }) {
   let lastYear: number | null = null
   return (
@@ -44,7 +57,12 @@ function TripListWithYearDividers({
         return (
           <div key={trip.id}>
             {showDivider && <YearDivider year={year} />}
-            <LongPressMenu actions={[{ label: 'Delete trip…', destructive: true, onSelect: () => onDelete(trip) }]}>
+            <LongPressMenu
+              actions={[
+                ...(extraActions?.(trip) ?? []),
+                { label: 'Delete trip…', destructive: true, onSelect: () => onDelete(trip) },
+              ]}
+            >
               <TripCard trip={trip} attachmentCounts={attachmentCounts.get(trip.id)} />
             </LongPressMenu>
           </div>
@@ -61,6 +79,8 @@ export default function Dashboard() {
   const [nextUp, setNextUp] = useState<{ tripId: string; entry: TimelineEntry } | null>(null)
   const [attachmentCounts, setAttachmentCounts] = useState<Map<string, TripAttachmentCounts>>(new Map())
   const [tripToDelete, setTripToDelete] = useState<Trip | null>(null)
+  const [dismissed, setDismissed] = useState<Set<string>>(() => getArchivePromptDismissed())
+  const [statusError, setStatusError] = useState<string | null>(null)
   const { signOut } = useAuth()
   const navigate = useNavigate()
 
@@ -72,6 +92,47 @@ export default function Dashboard() {
 
   const active = trips.filter((t) => t.status === 'active' || t.status === 'upcoming')
   const past = trips.filter((t) => t.status === 'past' || t.status === 'cancelled')
+
+  // One trip at a time: the oldest ended trip first, then the next after it
+  // is answered. Archiving only changes `status` — it never touches the
+  // locked total cost.
+  const archiveCandidate = active
+    .filter((t) => daysUntil(t.end_date) < -ARCHIVE_PROMPT_AFTER_DAYS && !dismissed.has(t.id))
+    .sort((a, b) => a.end_date.localeCompare(b.end_date))[0]
+
+  async function setTripStatus(trip: Trip, status: 'past' | 'upcoming') {
+    setStatusError(null)
+    try {
+      const updated = await updateTrip(trip.id, { status })
+      setTrips((ts) => ts.map((t) => (t.id === trip.id ? { ...t, status: updated.status } : t)))
+    } catch {
+      setStatusError(`Couldn't update "${trip.name}" — check your connection and try again.`)
+    }
+  }
+
+  function leaveTrip(trip: Trip) {
+    dismissArchivePrompt(trip.id)
+    setDismissed(getArchivePromptDismissed())
+  }
+
+  function tripActions(trip: Trip): LongPressAction[] {
+    if ((trip.status === 'upcoming' || trip.status === 'active') && hasEnded(trip)) {
+      return [{ label: 'Move to Past', onSelect: () => void setTripStatus(trip, 'past') }]
+    }
+    if (trip.status === 'past') {
+      return [
+        {
+          label: 'Move back to Upcoming',
+          onSelect: () => {
+            // Don't nag about a trip that was deliberately restored.
+            leaveTrip(trip)
+            void setTripStatus(trip, 'upcoming')
+          },
+        },
+      ]
+    }
+    return []
+  }
 
   // Trip-level (not booking/itinerary-attached) document/link counts, shown
   // as small badges on each card (Missing Features #23) — a quick way to
@@ -153,6 +214,33 @@ export default function Dashboard() {
         <>
           {nextUp && <NextUpCard tripId={nextUp.tripId} entry={nextUp.entry} />}
 
+          {statusError && (
+            <p className="mb-4 rounded-2xl bg-red-50 p-3 text-sm text-red-700 ring-1 ring-red-100">{statusError}</p>
+          )}
+
+          {archiveCandidate && (
+            <div className="mb-6 rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-100">
+              <p className="text-sm text-stone-700">
+                <span className="font-semibold">{archiveCandidate.name}</span> ended on{' '}
+                {formatDate(archiveCandidate.end_date, { day: 'numeric', month: 'short' })}. Move it to Past Trips?
+              </p>
+              <div className="mt-3 flex gap-3">
+                <button
+                  onClick={() => void setTripStatus(archiveCandidate, 'past')}
+                  className="rounded-xl bg-teal-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-700"
+                >
+                  Move to Past
+                </button>
+                <button
+                  onClick={() => leaveTrip(archiveCandidate)}
+                  className="rounded-xl px-3 py-1.5 text-sm font-medium text-stone-500 ring-1 ring-stone-200 hover:bg-white"
+                >
+                  Leave it
+                </button>
+              </div>
+            </div>
+          )}
+
           <section className="space-y-3">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-400">
               Active &amp; Upcoming
@@ -163,7 +251,12 @@ export default function Dashboard() {
                 Supabase.
               </p>
             ) : (
-              <TripListWithYearDividers trips={active} attachmentCounts={attachmentCounts} onDelete={setTripToDelete} />
+              <TripListWithYearDividers
+                trips={active}
+                attachmentCounts={attachmentCounts}
+                onDelete={setTripToDelete}
+                extraActions={tripActions}
+              />
             )}
           </section>
 
@@ -178,7 +271,12 @@ export default function Dashboard() {
               </button>
               {showPast && (
                 <div className="mt-3 space-y-3 opacity-80">
-                  <TripListWithYearDividers trips={past} attachmentCounts={attachmentCounts} onDelete={setTripToDelete} />
+                  <TripListWithYearDividers
+                    trips={past}
+                    attachmentCounts={attachmentCounts}
+                    onDelete={setTripToDelete}
+                    extraActions={tripActions}
+                  />
                 </div>
               )}
             </section>
