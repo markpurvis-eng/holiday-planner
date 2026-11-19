@@ -17,18 +17,22 @@ export default function Settings() {
   const [hideCancelled, setHideCancelled] = useState(() => getHideCancelledItems())
   const [trips, setTrips] = useState<Trip[]>([])
   const [selectedTripId, setSelectedTripId] = useState('')
+  const [showPast, setShowPast] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [shareNotice, setShareNotice] = useState<string | null>(null)
 
   useEffect(() => {
     getTripTypes().then(setTripTypes)
-    getTrips().then((loaded) => {
-      setTrips(loaded)
-      setSelectedTripId((prev) => prev || loaded[0]?.id || '')
-    })
+    getTrips().then(setTrips)
   }, [])
 
-  const selectedTrip = trips.find((t) => t.id === selectedTripId)
+  // Sharing is mostly for trips still to come, so the picker lists Active &
+  // Upcoming only (same split as the Dashboard, on the stored status); the
+  // toggle adds the rest for the occasional "send the family a copy afterwards".
+  const shareableTrips = showPast ? trips : trips.filter((t) => t.status === 'active' || t.status === 'upcoming')
+  // Falls back to the first listed trip, so hiding past trips while one is
+  // selected moves the selection instead of leaving a hidden trip chosen.
+  const selectedTrip = shareableTrips.find((t) => t.id === selectedTripId) ?? shareableTrips[0]
 
   async function handleGenerateItinerary() {
     if (!selectedTrip) return
@@ -150,20 +154,34 @@ export default function Settings() {
         </h2>
         <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100">
           <select
-            value={selectedTripId}
+            value={selectedTrip?.id ?? ''}
             onChange={(e) => {
               setSelectedTripId(e.target.value)
               setShareNotice(null)
             }}
             className="w-full rounded-xl border border-stone-200 px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
           >
-            {trips.length === 0 && <option value="">No trips yet</option>}
-            {trips.map((t) => (
+            {shareableTrips.length === 0 && (
+              <option value="">{trips.length === 0 ? 'No trips yet' : 'No active or upcoming trips'}</option>
+            )}
+            {shareableTrips.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
               </option>
             ))}
           </select>
+          <label className="flex items-center gap-2 text-xs text-stone-500">
+            <input
+              type="checkbox"
+              checked={showPast}
+              onChange={(e) => {
+                setShowPast(e.target.checked)
+                setShareNotice(null)
+              }}
+              className="h-4 w-4 rounded border-stone-300 text-teal-600 focus:ring-teal-500"
+            />
+            Show past trips
+          </label>
           {selectedTrip && (
             <p className="text-xs text-stone-400">
               {selectedTrip.public_itinerary_generated_at
